@@ -4,7 +4,7 @@ Direct port of vspdf/src/anchor-generator.ts (logic unchanged). Each anchor maps
 a content block (text/image/table/equation/list) to a PDF page + normalized bbox.
 
 The one divergence from the TS original: image/table `imagePath` is written as a
-vault-relative path under `attachments/papers/<citekey>/`, because parsed
+vault-relative path under `attachments/papers/<doc_id>/`, because parsed
 markdown and anchor metadata live in hidden `.raw/` while user-facing figures
 must remain visible/embeddable in Obsidian.
 """
@@ -138,7 +138,7 @@ def _build_anchor(
 
 
 def generate_anchors(
-    citekey: str,
+    doc_id: str,
     source_pdf: str,
     markdown_path: str,
     content_list_path: str,
@@ -148,7 +148,7 @@ def generate_anchors(
     """Build a complete AnchorManifest from a MinerU content_list.
 
     Args:
-        citekey: citation key (becomes manifest.docId in the new architecture).
+        doc_id: canonical parse identity (becomes manifest.docId).
         source_pdf: absolute PDF path.
         markdown_path / content_list_path / assets_root: vault-relative paths.
         content_list: parsed MinerU content_list.
@@ -182,7 +182,7 @@ def generate_anchors(
     anchors = _deduplicate_text_anchors(anchors, content_list)
 
     return AnchorManifest(
-        docId=citekey,
+        docId=doc_id,
         sourcePdf=source_pdf,
         markdownPath=markdown_path,
         contentListPath=content_list_path,

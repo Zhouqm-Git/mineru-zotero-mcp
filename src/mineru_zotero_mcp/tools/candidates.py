@@ -48,15 +48,15 @@ _CONTEXT_NEIGHBORS = 2
     ),
 )
 def list_visual_candidates_tool(
-    citekey: str,
+    doc_id: str,
     page: int | None = None,
 ) -> str:
     vault = get_vault_root()
-    manifest = load_manifest(vault, citekey)
+    manifest = load_manifest(vault, doc_id)
     if manifest is None:
         return (
-            f"No parsed data for `{citekey}`. "
-            f"Run `mineru_parse_pdf(citekey=\"{citekey}\")` first."
+            f"No parsed data for doc_id `{doc_id}`. "
+            "Run `mineru_parse_pdf(...)` first and use the returned `doc_id`."
         )
 
     anchors = manifest.get("anchors", [])
@@ -66,7 +66,7 @@ def list_visual_candidates_tool(
 
     if not image_anchors:
         where = f" on page {page}" if page else ""
-        return f"No figures found for `{citekey}`{where}."
+        return f"No figures found for `{doc_id}`{where}."
 
     # Index text anchors by page for neighbor lookup.
     text_by_page: dict[int, list[dict]] = {}
@@ -74,7 +74,7 @@ def list_visual_candidates_tool(
         if a.get("kind") == "text":
             text_by_page.setdefault(a.get("page"), []).append(a)
 
-    lines: list[str] = [f"# {len(image_anchors)} figure(s) in `{citekey}`", ""]
+    lines: list[str] = [f"# {len(image_anchors)} figure(s) in `{doc_id}`", ""]
     for i, img in enumerate(image_anchors, 1):
         p = img.get("page")
         bbox = img.get("bbox") or []
@@ -95,7 +95,7 @@ def list_visual_candidates_tool(
     lines.append(
         "Tip: pick figures whose caption matches your note's point and embed the "
         "path above. No need to call any other tool to get the image — it's already "
-        "rendered under attachments/papers/<citekey>/."
+        "rendered under attachments/papers/<doc_id>/."
     )
     return "\n".join(lines)
 

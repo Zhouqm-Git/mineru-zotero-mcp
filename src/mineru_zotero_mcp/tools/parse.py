@@ -12,7 +12,6 @@ from .._app import mcp
 from .._ctx import ConfigError, get_mineru_client, get_vault_root
 from ..mineru_client import MineruError
 from ..parse_persist import parse_pdf
-from ..zotero_bridge import item_key_to_citekey, resolve_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,10 @@ logger = logging.getLogger(__name__)
     description=(
         "Parse a single Zotero PDF via MinerU (vlm model, tables converted to "
         "Markdown). Resolves the PDF by item_key (preferred) or citekey, sends it "
-        "to the MinerU cloud, and persists results to <vault>/.raw/<citekey>/ "
+        "to the MinerU cloud, and persists results to <vault>/.raw/<doc_id>/ "
         "(markdown, anchors.json, content.json, meta.json) plus figures under "
-        "<vault>/attachments/papers/<citekey>/. "
+        "<vault>/attachments/papers/<doc_id>/. "
+        "If an item key exists in multiple Zotero libraries, pass library_id. "
         "Tables become GFM pipe tables so text-only LLMs can read them. "
         "Re-parses are skipped unless force=true (content-hash cache). "
         "After this, use mineru_read_markdown / mineru_list_anchors / "
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 def parse_pdf_tool(
     item_key: str | None = None,
     citekey: str | None = None,
+    library_id: int | None = None,
     force: bool = False,
     model_version: str = "vlm",
     enable_table: bool = True,
@@ -50,6 +51,7 @@ def parse_pdf_tool(
             client=client,
             item_key=item_key,
             citekey=citekey,
+            library_id=library_id,
             model_version=model_version,
             enable_table=enable_table,
             page_ranges=page_ranges,
@@ -64,13 +66,15 @@ def parse_pdf_tool(
     cached_tag = " (cached)" if result.cached else ""
     return (
         f"Parsed **{result.citekey}**{cached_tag}.\n\n"
+        f"- doc_id: `{result.doc_id}`\n"
         f"- item_key: `{result.item_key}`\n"
+        f"- library: `{result.library_name or result.library_id or 'unknown'}`\n"
         f"- markdown: `{result.markdown_path}`\n"
         f"- anchors: `{result.anchors_path}`\n"
         f"- assets: `{result.assets_dir}`\n"
         f"- pages: {result.page_count}, images: {result.image_count}, "
         f"tables: {result.table_count}, chars: {result.char_count}\n\n"
-        f"Next: `mineru_read_markdown(citekey=\"{result.citekey}\")` to read."
+        f"Next: `mineru_read_markdown(doc_id=\"{result.doc_id}\")` to read."
     )
 
 
@@ -89,6 +93,7 @@ def parse_pdf_tool(
 def parse_batch_tool(
     item_keys: list[str] | None = None,
     collection_key: str | None = None,
+    library_id: int | None = None,
     force: bool = False,
     ignore_quota: bool = False,
     model_version: str = "vlm",
@@ -132,6 +137,7 @@ def parse_batch_tool(
                 vault_root=vault,
                 client=client,
                 item_key=item_key,
+                library_id=library_id,
                 model_version=model_version,
                 enable_table=enable_table,
                 force=force,
@@ -144,6 +150,7 @@ def parse_batch_tool(
                 {
                     "citekey": r.citekey,
                     "item_key": r.item_key,
+                    "doc_id": r.doc_id,
                     "state": "cached" if r.cached else "done",
                     "markdown_path": r.markdown_path,
                 }
@@ -162,7 +169,7 @@ def parse_batch_tool(
         if r.get("state") in ("done", "cached"):
             lines.append(
                 f"- [{r['state']}] `{r.get('citekey', '?')}` "
-                f"(item_key={r.get('item_key')}) → {r.get('markdown_path')}"
+                f"(doc_id={r.get('doc_id')}, item_key={r.get('item_key')}) → {r.get('markdown_path')}"
             )
         else:
             lines.append(f"- [failed] item_key={r.get('item_key')}: {r.get('error')}")

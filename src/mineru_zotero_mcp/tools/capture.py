@@ -2,7 +2,7 @@
 
 Renders an arbitrary region of the paper's PDF as a PNG. After parse-time
 figure merging, this is NOT needed for figures — those are already whole and
-high-quality in attachments/papers/<citekey>/. This tool serves NON-figure
+high-quality in attachments/papers/<doc_id>/. This tool serves NON-figure
 content that has no image on disk but that you want to show visually in a note:
 
   - a formula block          (equation anchors have text but no image)
@@ -31,7 +31,7 @@ from typing import Any
 from .._app import mcp
 from .._ctx import get_vault_root
 from ..pdf_renderer import render_region
-from ..store import load_manifest, paper_attachments_dir, sanitize_citekey, to_vault_relative
+from ..store import load_manifest, paper_attachments_dir, sanitize_doc_id, to_vault_relative
 from ..types import Bbox
 from ..zotero_bridge import get_pdf_path_for_item
 
@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
     name="mineru_capture_region",
     description=(
         "Render an arbitrary region of the paper's PDF as a PNG and save it under "
-        "the vault's attachments/papers/<citekey>/. Use this for NON-figure content that has no "
+        "the vault's attachments/papers/<doc_id>/. Use this for NON-figure content that has no "
         "image on disk: a formula block, a table's visual layout, a text passage "
         "as evidence, or a custom bbox. For figures, use the image path returned "
         "by mineru_list_visual_candidates directly — figures are already rendered "
@@ -54,7 +54,7 @@ logger = logging.getLogger(__name__)
     ),
 )
 def capture_region_tool(
-    citekey: str,
+    doc_id: str,
     anchor_id: str | None = None,
     page: int | None = None,
     bbox: list[float] | None = None,
@@ -62,18 +62,18 @@ def capture_region_tool(
 ) -> str:
     vault = get_vault_root()
 
-    manifest = load_manifest(vault, citekey)
+    manifest = load_manifest(vault, doc_id)
     if manifest is None:
         return (
-            f"No parsed data for `{citekey}`. "
-            f"Run `mineru_parse_pdf(citekey=\"{citekey}\")` first."
+            f"No parsed data for doc_id `{doc_id}`. "
+            "Run `mineru_parse_pdf(...)` first and use the returned `doc_id`."
         )
 
     # Resolve target page + bbox from anchor_id OR explicit page+bbox.
     if anchor_id is not None:
         anchor = _find_anchor(manifest, anchor_id)
         if anchor is None:
-            return f"Anchor `{anchor_id}` not found in `{citekey}`."
+            return f"Anchor `{anchor_id}` not found in `{doc_id}`."
         target_page = anchor["page"]
         target_bbox: Bbox = tuple(anchor["bbox"])  # type: ignore[assignment]
         kind = anchor.get("kind")
@@ -95,19 +95,19 @@ def capture_region_tool(
     pdf_path = _resolve_pdf(manifest)
     if pdf_path is None or not Path(pdf_path).is_file():
         return (
-            f"PDF unavailable for `{citekey}` — cannot render. "
+            f"PDF unavailable for `{doc_id}` — cannot render. "
             f"Ensure the Zotero attachment is downloaded locally."
         )
 
-    out_path, out_relative = _build_capture_path(vault, citekey)
+    out_path, out_relative = _build_capture_path(vault, doc_id)
     try:
         cap = render_region(pdf_path, target_page, target_bbox, out_path, dpi)
     except Exception as e:  # noqa: BLE001
-        logger.warning("Capture failed for %s: %s", citekey, e)
-        return f"Capture failed for `{citekey}` page {target_page}: {e}"
+        logger.warning("Capture failed for %s: %s", doc_id, e)
+        return f"Capture failed for `{doc_id}` page {target_page}: {e}"
 
     return (
-        f"Captured `{citekey}` page {target_page} → `{out_relative}`.\n\n"
+        f"Captured `{doc_id}` page {target_page} → `{out_relative}`.\n\n"
         f"- page: {target_page}\n"
         f"- bbox (normalized): {[round(c, 3) for c in target_bbox]}\n"
         f"- image: {cap.image_width}×{cap.image_height} px @ {dpi} DPI\n"
@@ -142,9 +142,9 @@ def _resolve_pdf(manifest: dict[str, Any]) -> str | None:
     return None
 
 
-def _build_capture_path(vault: Path, citekey: str) -> tuple[Path, str]:
-    out_dir = paper_attachments_dir(vault, citekey)
+def _build_capture_path(vault: Path, doc_id: str) -> tuple[Path, str]:
+    out_dir = paper_attachments_dir(vault, doc_id)
     out_dir.mkdir(parents=True, exist_ok=True)
-    cap_id = f"{sanitize_citekey(citekey)}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
+    cap_id = f"{sanitize_doc_id(doc_id).replace('/', '__')}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
     out_path = out_dir / f"cap_{cap_id}.png"
     return out_path, to_vault_relative(vault, out_path)

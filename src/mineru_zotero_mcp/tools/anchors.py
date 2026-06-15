@@ -1,7 +1,7 @@
 """mineru_list_anchors and mineru_resolve_anchor tools.
 
 Read-only queries over the anchors.json produced by mineru_parse_pdf.
-Mirrors vspdf doc.list_anchors / doc.resolve_anchor but keyed by citekey.
+Mirrors vspdf doc.list_anchors / doc.resolve_anchor but keyed by doc_id.
 """
 
 from __future__ import annotations
@@ -34,20 +34,20 @@ def _format_anchor_summary(a: dict[str, Any]) -> dict[str, Any]:
         "List the structural anchors for a parsed paper. Each anchor maps one "
         "content block (text / image / table / equation / list) to a PDF page + "
         "normalized bbox. Filter by page (1-based) or kind. "
-        "Run mineru_parse_pdf first. Keyed by citekey."
+        "Run mineru_parse_pdf first and use the returned doc_id."
     ),
 )
 def list_anchors_tool(
-    citekey: str,
+    doc_id: str,
     page: int | None = None,
     kind: str | None = None,
 ) -> str:
     vault = get_vault_root()
-    manifest = load_manifest(vault, citekey)
+    manifest = load_manifest(vault, doc_id)
     if manifest is None:
         return (
-            f"No anchors found for citekey `{citekey}`. "
-            f"Run `mineru_parse_pdf(citekey=\"{citekey}\")` first."
+            f"No anchors found for doc_id `{doc_id}`. "
+            "Run `mineru_parse_pdf(...)` first and use the returned `doc_id`."
         )
 
     anchors = manifest.get("anchors", [])
@@ -57,9 +57,9 @@ def list_anchors_tool(
         anchors = [a for a in anchors if a.get("kind") == kind]
 
     if not anchors:
-        return f"No anchors matching page={page}, kind={kind} for `{citekey}`."
+        return f"No anchors matching page={page}, kind={kind} for `{doc_id}`."
 
-    lines = [f"# {len(anchors)} anchors for `{citekey}`", ""]
+    lines = [f"# {len(anchors)} anchors for `{doc_id}`", ""]
     for a in anchors:
         summary = _format_anchor_summary(a)
         preview = (summary["textPreview"] or summary["caption"] or "")[:60]
@@ -80,13 +80,13 @@ def list_anchors_tool(
         "Use anchorId from mineru_list_anchors."
     ),
 )
-def resolve_anchor_tool(citekey: str, anchor_id: str) -> str:
+def resolve_anchor_tool(doc_id: str, anchor_id: str) -> str:
     vault = get_vault_root()
-    manifest = load_manifest(vault, citekey)
+    manifest = load_manifest(vault, doc_id)
     if manifest is None:
         return (
-            f"No anchors found for citekey `{citekey}`. "
-            f"Run `mineru_parse_pdf(citekey=\"{citekey}\")` first."
+            f"No anchors found for doc_id `{doc_id}`. "
+            "Run `mineru_parse_pdf(...)` first and use the returned `doc_id`."
         )
 
     anchor = next(
@@ -94,7 +94,7 @@ def resolve_anchor_tool(citekey: str, anchor_id: str) -> str:
         None,
     )
     if anchor is None:
-        return f"Anchor `{anchor_id}` not found in `{citekey}`."
+        return f"Anchor `{anchor_id}` not found in `{doc_id}`."
 
     lines = [f"# `{anchor_id}`", ""]
     lines.append(f"- kind: `{anchor.get('kind')}`")

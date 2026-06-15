@@ -9,11 +9,10 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 
 from .._app import mcp
 from .._ctx import get_vault_root
-from ..store import load_manifest, md_path
+from ..store import load_manifest
 
 logger = logging.getLogger(__name__)
 
@@ -32,26 +31,32 @@ _MAX_CHARS_DEFAULT = 8000
     ),
 )
 def read_markdown_tool(
-    citekey: str,
+    doc_id: str,
     page: int | None = None,
     max_chars: int = _MAX_CHARS_DEFAULT,
 ) -> str:
     vault = get_vault_root()
-    md_p = md_path(vault, citekey)
-    if not md_p.is_file():
+    manifest = load_manifest(vault, doc_id)
+    if manifest is None:
         return (
-            f"No parsed markdown for `{citekey}`. "
-            f"Run `mineru_parse_pdf(citekey=\"{citekey}\")` first."
+            f"No parsed markdown for doc_id `{doc_id}`. "
+            "Run `mineru_parse_pdf(...)` first and use the returned `doc_id`."
         )
 
+    md_rel = manifest.get("markdownPath")
+    md_p = vault / md_rel if md_rel else None
+    if md_p is None or not md_p.is_file():
+        return (
+            f"No parsed markdown file for doc_id `{doc_id}`. "
+            "Re-run `mineru_parse_pdf(..., force=True)`."
+        )
     content = md_p.read_text(encoding="utf-8")
-    manifest = load_manifest(vault, citekey)
 
     if page is None:
         page_hints = _all_page_hints(manifest)
         truncated = len(content) > max_chars
         snippet = content[:max_chars] if truncated else content
-        header = f"# `{citekey}` — full markdown ({len(content)} chars"
+        header = f"# `{doc_id}` — full markdown ({len(content)} chars"
         if truncated:
             header += f", truncated to {max_chars}"
         header += ")\n\n"
@@ -62,7 +67,7 @@ def read_markdown_tool(
     target = next((r for r in page_ranges if r["page"] == page), None)
     if target is None:
         anchor_ids = _anchor_ids_for_page(manifest, page)
-        return f"Page {page} not found in `{citekey}`. page_hints={{{page}: {anchor_ids}}}"
+        return f"Page {page} not found in `{doc_id}`. page_hints={{{page}: {anchor_ids}}}"
 
     page_content = content[target["start"]: target["end"]].strip()
     truncated = len(page_content) > max_chars
@@ -71,7 +76,7 @@ def read_markdown_tool(
     anchor_ids = _anchor_ids_for_page(manifest, page)
 
     return (
-        f"# `{citekey}` — page {page} ({len(content[target['start']:target['end']])} chars)\n\n"
+        f"# `{doc_id}` — page {page} ({len(content[target['start']:target['end']])} chars)\n\n"
         + page_content
         + f"\n\n---\nanchorIds on this page: {anchor_ids}"
     )

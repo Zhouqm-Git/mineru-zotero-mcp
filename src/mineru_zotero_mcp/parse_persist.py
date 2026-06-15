@@ -1,15 +1,15 @@
 """Parse one Zotero PDF via MinerU and persist artifacts to the vault.
 
-Orchestrates: zotero_bridge (PDF path + citekey) → mineru_client (extract) →
+Orchestrates: zotero_bridge (PDF path + item identity) → mineru_client (extract) →
 table_normalizer (tables → MD) → anchor_generator (bbox map) → store (atomic
-write to .raw/<citekey>/ and user-visible figures to attachments/papers/<citekey>/).
+write to .raw/<doc_id>/ and user-visible figures to attachments/papers/<doc_id>/).
 
 Replaces vspdf/src/parse-and-persist.ts. Key differences from the TS original:
-  - Input is item_key/citekey (not a workspace-relative docId).
-  - Output dir is <vault>/.raw/<citekey>/ (not .docnotes/parsed/).
+  - Input is item_key/citekey lookup, but persisted identity is doc_id.
+  - Output dir is <vault>/.raw/<doc_id>/ (not .docnotes/parsed/).
   - Tables are normalized to GFM Markdown (not left as dual HTML+image).
   - Cache key is PDF content hash (not mtime).
-  - Image paths rewritten to attachments/papers/<citekey>/<name>
+  - Image paths rewritten to attachments/papers/<doc_id>/<name>
     (vault-relative, Obsidian-reachable).
 """
 
@@ -29,6 +29,7 @@ from .store import (
     content_path,
     ensure_dir,
     is_cached,
+    make_doc_id,
     md_path,
     meta_path,
     now_ms,
@@ -42,7 +43,7 @@ from .store import (
 )
 from .table_normalizer import normalize_table_body
 from .types import ContentItem, ParseMeta, ParseResult
-from .zotero_bridge import get_pdf_path_for_item, resolve_identifier
+from .zotero_bridge import get_item_identity, get_pdf_path_for_item, resolve_identifier
 
 logger = logging.getLogger(__name__)
 
@@ -168,6 +169,7 @@ def parse_pdf(
     client: MineruClient,
     item_key: str | None = None,
     citekey: str | None = None,
+    library_id: int | str | None = None,
     model_version: str = "vlm",
     enable_table: bool = True,
     enable_formula: bool = True,
@@ -178,8 +180,8 @@ def parse_pdf(
 ) -> ParseResult:
     """Parse one Zotero PDF via MinerU and persist artifacts into the vault.
 
-    Hidden parse artifacts go to <vault>/.raw/<citekey>/. Figures intended for
-    note embeds go to <vault>/attachments/papers/<citekey>/.
+    Hidden parse artifacts go to <vault>/.raw/<doc_id>/. Figures intended for
+    note embeds go to <vault>/attachments/papers/<doc_id>/.
 
     Provide either item_key or citekey; the other is resolved via zotero_bridge.
     """
@@ -190,12 +192,20 @@ def parse_pdf(
             "Could not resolve a citation key for this item. "
             "Is BetterBibTeX running, or is the citekey recorded in the item's 'extra' field?"
         )
-    safe_key = sanitize_citekey(citekey)
-
     # Resolve PDF path via zotero_bridge (reuses LocalZoteroReader).
     if not item_key:
         raise MineruError("item_key is required to locate the PDF attachment")
-    pdf_path = get_pdf_path_for_item(item_key)
+    identity = get_item_identity(item_key, library_id=library_id)
+    library_id = identity.get("library_id")
+    library_name = identity.get("library_name")
+    if library_id is None:
+        raise MineruError(
+            f"Could not resolve Zotero library_id for item {item_key}. "
+            "Ensure Zotero local DB is configured, or pass library_id explicitly."
+        )
+    doc_id = make_doc_id(library_id, item_key)
+    safe_key = sanitize_citekey(item_key)
+    pdf_path = get_pdf_path_for_item(item_key, library_id=library_id)
     if not pdf_path:
         raise MineruError(
             f"No local PDF attachment found for item {item_key}. "
@@ -204,10 +214,10 @@ def parse_pdf(
 
     # Cache check (content hash).
     if not force:
-        cached = is_cached(vault_root, citekey, pdf_path)
+        cached = is_cached(vault_root, doc_id, pdf_path)
         if cached:
-            logger.info("Cache hit for %s (citekey=%s)", pdf_path.name, citekey)
-            return _result_from_cache(vault_root, citekey, item_key, str(pdf_path), cached)
+            logger.info("Cache hit for %s (doc_id=%s, citekey=%s)", pdf_path.name, doc_id, citekey)
+            return _result_from_cache(vault_root, doc_id, citekey, item_key, str(pdf_path), cached)
 
     # Submit + wait.
     batch_id = client.parse_local_file(
@@ -231,7 +241,7 @@ def parse_pdf(
         raise MineruError(f"MinerU returned an empty markdown for {pdf_path.name}")
 
     # Persist images.
-    assets_directory = assets_dir(vault_root, citekey)
+    assets_directory = assets_dir(vault_root, doc_id)
     assets_relative = to_vault_relative(vault_root, assets_directory)
     image_count, _image_map = _persist_images(extracted, assets_directory, assets_relative)
 
@@ -249,16 +259,16 @@ def parse_pdf(
     image_count = max(image_count, _img_count_from_list)
 
     # Write content.json (raw content_list backup; not touched by figure merge).
-    write_json(content_path(vault_root, citekey), extracted.content_list or [])
+    write_json(content_path(vault_root, doc_id), extracted.content_list or [])
 
     # Generate anchors BEFORE writing markdown, so figure-fragment merge can
     # rewrite both the anchors and the markdown in one pass.
-    md_p = md_path(vault_root, citekey)
+    md_p = md_path(vault_root, doc_id, citekey)
     manifest = generate_anchors(
-        citekey=citekey,
+        doc_id=doc_id,
         source_pdf=str(pdf_path),
         markdown_path=to_vault_relative(vault_root, md_p),
-        content_list_path=to_vault_relative(vault_root, content_path(vault_root, citekey)),
+        content_list_path=to_vault_relative(vault_root, content_path(vault_root, doc_id)),
         assets_root=assets_relative,
         content_list=content_list_ref,
     )
@@ -283,15 +293,18 @@ def parse_pdf(
 
     # Persist markdown + anchors (both now reflect merged figures).
     write_text(md_p, final_markdown)
-    write_json(anchors_path(vault_root, citekey), manifest.to_dict())
+    write_json(anchors_path(vault_root, doc_id), manifest.to_dict())
 
     # Write meta.json (cache key = content hash).
     source_hash = pdf_content_hash(pdf_path)
     meta = ParseMeta(
         citekey=citekey,
         item_key=item_key,
+        doc_id=doc_id,
         source_path=str(pdf_path),
         source_hash=source_hash,
+        library_id=library_id,
+        library_name=library_name,
         model_version=model_version,
         char_count=len(final_markdown),
         page_count=page_count,
@@ -299,10 +312,10 @@ def parse_pdf(
         table_count=table_count,
         cached_at=now_ms(),
         mineru_batch_id=batch_id,
-        content_list_path=to_vault_relative(vault_root, content_path(vault_root, citekey)),
+        content_list_path=to_vault_relative(vault_root, content_path(vault_root, doc_id)),
         assets_root=assets_relative,
     )
-    write_json(meta_path(vault_root, citekey), meta.__dict__)
+    write_json(meta_path(vault_root, doc_id), meta.__dict__)
 
     logger.info(
         "Parsed %s → %s (%d pages, %d images, %d tables, %d chars)",
@@ -317,16 +330,19 @@ def parse_pdf(
     return ParseResult(
         citekey=citekey,
         item_key=item_key,
+        doc_id=doc_id,
         pdf_path=str(pdf_path),
         markdown_path=to_vault_relative(vault_root, md_p),
-        anchors_path=to_vault_relative(vault_root, anchors_path(vault_root, citekey)),
+        anchors_path=to_vault_relative(vault_root, anchors_path(vault_root, doc_id)),
         assets_dir=assets_relative,
-        meta_path=to_vault_relative(vault_root, meta_path(vault_root, citekey)),
+        meta_path=to_vault_relative(vault_root, meta_path(vault_root, doc_id)),
         page_count=page_count,
         image_count=image_count,
         table_count=table_count,
         char_count=len(final_markdown),
         cached=False,
+        library_id=library_id,
+        library_name=library_name,
     )
 
 
@@ -350,6 +366,7 @@ def _attach_markdown_tables(anchors, content_list: list[ContentItem]) -> None:
 
 def _result_from_cache(
     vault_root: Path,
+    doc_id: str,
     citekey: str,
     item_key: str,
     pdf_path: str,
@@ -358,14 +375,17 @@ def _result_from_cache(
     return ParseResult(
         citekey=citekey,
         item_key=item_key,
+        doc_id=doc_id,
         pdf_path=pdf_path,
-        markdown_path=to_vault_relative(vault_root, md_path(vault_root, citekey)),
-        anchors_path=to_vault_relative(vault_root, anchors_path(vault_root, citekey)),
-        assets_dir=to_vault_relative(vault_root, assets_dir(vault_root, citekey)),
-        meta_path=to_vault_relative(vault_root, meta_path(vault_root, citekey)),
+        markdown_path=to_vault_relative(vault_root, md_path(vault_root, doc_id, citekey)),
+        anchors_path=to_vault_relative(vault_root, anchors_path(vault_root, doc_id)),
+        assets_dir=to_vault_relative(vault_root, assets_dir(vault_root, doc_id)),
+        meta_path=to_vault_relative(vault_root, meta_path(vault_root, doc_id)),
         page_count=meta.get("page_count", 0),
         image_count=meta.get("image_count", 0),
         table_count=meta.get("table_count", 0),
         char_count=meta.get("char_count", 0),
         cached=True,
+        library_id=meta.get("library_id"),
+        library_name=meta.get("library_name"),
     )

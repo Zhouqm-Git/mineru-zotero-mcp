@@ -23,7 +23,7 @@ def get_vault_root() -> Path:
     if not vault:
         raise ConfigError(
             "VAULT_ROOT is not set. Point it at your Obsidian vault root "
-            "(.raw/<citekey>/ and attachments/papers/<citekey>/ will be created there)."
+            "(.raw/<doc_id>/ and attachments/papers/<doc_id>/ will be created there)."
         )
     p = Path(vault).expanduser()
     if not p.is_dir():

@@ -9,7 +9,7 @@ This module runs right after anchor generation to:
   2. For each group with > 1 fragment, render ONE complete figure from the
      original PDF via PyMuPDF (high-DPI, full union bbox).
   3. Rewrite the markdown: replace the N fragmented image references with a
-     single ![](attachments/papers/<citekey>/fig_<id>.png).
+     single ![](attachments/papers/<doc_id>/fig_<id>.png).
   4. Delete the now-orphaned fragment jpgs from the attachment directory.
   5. Update the anchors so the group becomes a single anchor pointing at the
      merged figure (the surviving anchor keeps its id; siblings are removed).

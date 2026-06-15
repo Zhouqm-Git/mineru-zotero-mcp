@@ -38,24 +38,29 @@ print(f"vault:    {VAULT}")
 print(f"token:    {TOKEN[:20]}...")
 print()
 
-# Fresh vault for a clean test.
-raw = Path(VAULT) / ".raw" / CITEKEY
-if raw.exists():
-    shutil.rmtree(raw)
-paper_attachments = Path(VAULT) / "attachments" / "papers" / CITEKEY
-if paper_attachments.exists():
-    shutil.rmtree(paper_attachments)
 Path(VAULT).mkdir(parents=True, exist_ok=True)
 
 from mineru_zotero_mcp.mineru_client import MineruClient
 from mineru_zotero_mcp.parse_persist import parse_pdf
 
 ITEM_KEY_FAKE = "TESTTEST"
+DOC_ID_FAKE = f"lib-1/{ITEM_KEY_FAKE}"
+
+# Fresh vault for a clean test.
+raw = Path(VAULT) / ".raw" / DOC_ID_FAKE
+if raw.exists():
+    shutil.rmtree(raw)
+paper_attachments = Path(VAULT) / "attachments" / "papers" / DOC_ID_FAKE
+if paper_attachments.exists():
+    shutil.rmtree(paper_attachments)
 
 client = MineruClient(token=TOKEN)
 
 # Bypass Zotero: pretend resolve_identifier + get_pdf_path_for_item succeed.
 with patch("mineru_zotero_mcp.parse_persist.resolve_identifier", side_effect=lambda ik, ck: (ITEM_KEY_FAKE, CITEKEY)), \
+     patch("mineru_zotero_mcp.parse_persist.get_item_identity",
+           return_value={"item_key": ITEM_KEY_FAKE, "item_id": 1, "library_id": 1,
+                         "library_type": "user", "library_name": "My Library"}), \
      patch("mineru_zotero_mcp.parse_persist.get_pdf_path_for_item", return_value=Path(PDF)):
 
     print("→ Calling parse_pdf (submitting to MinerU, polling, persisting)...")
@@ -71,6 +76,7 @@ with patch("mineru_zotero_mcp.parse_persist.resolve_identifier", side_effect=lam
 
 print()
 print("=== RESULT ===")
+print(f"  doc_id:        {result.doc_id}")
 print(f"  citekey:       {result.citekey}")
 print(f"  cached:        {result.cached}")
 print(f"  page_count:    {result.page_count}")

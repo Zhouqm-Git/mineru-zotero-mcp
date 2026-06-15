@@ -24,8 +24,13 @@ import logging
 import re
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
+
+
+class AmbiguousItemKeyError(RuntimeError):
+    """Raised when an item key matches more than one Zotero library."""
 
 
 def _zotero_db_path() -> str | None:
@@ -48,7 +53,7 @@ def _local_reader_factory():
     return LocalZoteroReader
 
 
-def get_pdf_path_for_item(item_key: str) -> Path | None:
+def get_pdf_path_for_item(item_key: str, library_id: int | str | None = None) -> Path | None:
     """Resolve the local filesystem path of an item's PDF attachment.
 
     Returns the first existing PDF attachment's path, or None if no local PDF
@@ -58,7 +63,21 @@ def get_pdf_path_for_item(item_key: str) -> Path | None:
     db_path = _zotero_db_path()
     try:
         with Reader(db_path=db_path) as reader:
-            attachments = reader.get_attachment_paths(item_key)
+            parent = _find_item_row(reader, item_key, library_id)
+            if parent is None:
+                return None
+            attachments = []
+            for att_key, zotero_path, ctype in reader._iter_parent_attachments(parent["itemID"]):
+                resolved = reader._resolve_attachment_path(att_key, zotero_path or "")
+                attachments.append({
+                    "key": att_key,
+                    "content_type": ctype,
+                    "zotero_path": zotero_path,
+                    "resolved_path": resolved,
+                    "exists": bool(resolved and resolved.exists()),
+                })
+    except AmbiguousItemKeyError:
+        raise
     except Exception as e:  # noqa: BLE001 — bridge must degrade gracefully
         logger.warning("get_attachment_paths failed for %s: %s", item_key, e)
         return None
@@ -74,6 +93,119 @@ def get_pdf_path_for_item(item_key: str) -> Path | None:
         if att.get("exists") and resolved and Path(resolved).suffix.lower() == ".pdf":
             return Path(resolved)
     return None
+
+
+def _find_item_row(reader: Any, item_key: str, library_id: int | str | None = None) -> Any | None:
+    conn = reader._get_connection()
+    params: list[Any] = [item_key]
+    library_filter = ""
+    if library_id is not None:
+        library_filter = "AND i.libraryID = ?"
+        params.append(int(library_id))
+
+    rows = conn.execute(
+        f"""
+        SELECT i.itemID, i.key, i.libraryID
+        FROM items i
+        WHERE i.key = ?
+          {library_filter}
+          AND i.itemID NOT IN (SELECT itemID FROM deletedItems)
+        ORDER BY i.libraryID
+        """,
+        params,
+    ).fetchall()
+    if len(rows) > 1:
+        libs = ", ".join(str(r["libraryID"]) for r in rows)
+        raise AmbiguousItemKeyError(
+            f"Zotero item key `{item_key}` exists in multiple libraries ({libs}); pass library_id."
+        )
+    return rows[0] if rows else None
+
+
+def get_item_identity(
+    item_key: str, library_id: int | str | None = None
+) -> dict[str, Any]:
+    """Return library-scoped identity metadata for a Zotero item key.
+
+    Output keys:
+      - item_key
+      - item_id
+      - library_id
+      - library_type
+      - library_name
+
+    The item key alone should not be used as a vault-wide storage identity.
+    """
+    Reader = _local_reader_factory()
+    db_path = _zotero_db_path()
+    params: list[Any] = [item_key]
+    library_filter = ""
+    if library_id is not None:
+        library_filter = "AND i.libraryID = ?"
+        params.append(int(library_id))
+    try:
+        with Reader(db_path=db_path) as reader:
+            conn = reader._get_connection()
+            rows = conn.execute(
+                f"""
+                SELECT i.itemID, i.key, i.libraryID,
+                       l.type AS libraryType,
+                       g.name AS groupName,
+                       f.name AS feedName
+                FROM items i
+                JOIN libraries l ON i.libraryID = l.libraryID
+                LEFT JOIN groups g ON i.libraryID = g.libraryID
+                LEFT JOIN feeds f ON i.libraryID = f.libraryID
+                WHERE i.key = ?
+                  {library_filter}
+                  AND i.itemID NOT IN (SELECT itemID FROM deletedItems)
+                ORDER BY i.libraryID
+                """,
+                params,
+            ).fetchall()
+    except AmbiguousItemKeyError:
+        raise
+    except Exception as e:  # noqa: BLE001
+        logger.warning("item identity lookup failed for %s: %s", item_key, e)
+        return {
+            "item_key": item_key,
+            "item_id": None,
+            "library_id": None,
+            "library_type": None,
+            "library_name": None,
+        }
+
+    if not rows:
+        return {
+            "item_key": item_key,
+            "item_id": None,
+            "library_id": None,
+            "library_type": None,
+            "library_name": None,
+        }
+
+    if len(rows) > 1:
+        libs = ", ".join(str(r["libraryID"]) for r in rows)
+        raise AmbiguousItemKeyError(
+            f"Zotero item key `{item_key}` exists in multiple libraries ({libs}); pass library_id."
+        )
+
+    row = rows[0]
+    library_type = row["libraryType"]
+    if library_type == "group":
+        library_name = row["groupName"] or f"group-{row['libraryID']}"
+    elif library_type == "feed":
+        library_name = row["feedName"] or f"feed-{row['libraryID']}"
+    else:
+        library_name = "My Library"
+
+    return {
+        "item_key": row["key"],
+        "item_id": row["itemID"],
+        "library_id": row["libraryID"],
+        "library_type": library_type,
+        "library_name": library_name,
+    }
 
 
 @lru_cache(maxsize=1)

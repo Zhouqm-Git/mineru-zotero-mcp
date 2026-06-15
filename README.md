@@ -6,26 +6,30 @@ It is the companion to [`zotero-mcp`](https://github.com/54yyyu/zotero-mcp): whe
 
 ## What it does
 
-`Zotero item → citation key → MinerU parse → Obsidian vault`
+`Zotero item → doc_id (library + item key) → MinerU parse → Obsidian vault`
+
+`citekey` is bibliographic metadata only. Storage identity is always `doc_id`
+(`lib-<libraryID>/<item_key>`) so the same paper or citation key can exist in
+multiple Zotero libraries without colliding.
 
 Produces, per paper:
 
-- `.raw/<citekey>/<citekey>.md` — full MinerU Markdown (tables are GFM pipe tables, not images)
-- `.raw/<citekey>/anchors.json` — each text/image/table/equation/list block mapped back to a PDF page + bbox
-- `.raw/<citekey>/content.json` — raw MinerU content_list
-- `.raw/<citekey>/meta.json` — parse metadata + content-hash cache
-- `attachments/papers/<citekey>/` — extracted and re-rendered figures/captures for Obsidian embeds
+- `.raw/<doc_id>/<citekey>.md` — full MinerU Markdown (tables are GFM pipe tables, not images)
+- `.raw/<doc_id>/anchors.json` — each text/image/table/equation/list block mapped back to a PDF page + bbox
+- `.raw/<doc_id>/content.json` — raw MinerU content_list
+- `.raw/<doc_id>/meta.json` — parse metadata + content-hash cache
+- `attachments/papers/<doc_id>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
 ## Tools (7)
 
 | Tool | Purpose |
 |---|---|
-| `mineru_parse_pdf` | Parse a single Zotero PDF via MinerU |
+| `mineru_parse_pdf` | Parse a single Zotero PDF via MinerU; returns `doc_id` |
 | `mineru_parse_batch` | Batch-parse (≤50) with polling/callback |
-| `mineru_list_anchors` / `mineru_resolve_anchor` | Query the block→bbox mapping |
-| `mineru_read_markdown` | Read parsed md, optionally sliced by page |
-| `mineru_capture_region` | Fresh PDF region capture (PyMuPDF), with auto-merge of fragmented figures |
-| `mineru_list_visual_candidates` | Detect figure-fragment groups to merge |
+| `mineru_list_anchors` / `mineru_resolve_anchor` | Query the block→bbox mapping by `doc_id` |
+| `mineru_read_markdown` | Read parsed md by `doc_id`, optionally sliced by page |
+| `mineru_capture_region` | Fresh PDF region capture (PyMuPDF) saved under `attachments/papers/<doc_id>/` |
+| `mineru_list_visual_candidates` | List parse-time merged figure candidates by `doc_id` |
 
 annotation/note/search are deliberately **not** implemented — those belong to zotero-mcp.
 

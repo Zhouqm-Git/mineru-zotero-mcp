@@ -53,6 +53,9 @@ def run_batch(papers, label, expect_cached=False):
         fake_key = citekey.upper()[:8].ljust(8, "X")
         with patch("mineru_zotero_mcp.parse_persist.resolve_identifier",
                    side_effect=lambda ik, ck: (fake_key, citekey)), \
+             patch("mineru_zotero_mcp.parse_persist.get_item_identity",
+                   return_value={"item_key": fake_key, "item_id": 1, "library_id": 1,
+                                 "library_type": "user", "library_name": "My Library"}), \
              patch("mineru_zotero_mcp.parse_persist.get_pdf_path_for_item",
                    return_value=Path(pdf_path)):
             try:
@@ -107,13 +110,14 @@ print()
 # Vault layout check
 print("=== VAULT LAYOUT ===")
 raw = Path(VAULT) / ".raw"
-for d in sorted(raw.iterdir()) if raw.exists() else []:
-    md = d / f"{d.name}.md"
+for d in sorted(raw.glob("*/*")) if raw.exists() else []:
+    citekey = d.name.lower()
+    md_candidates = list(d.glob("*.md"))
     anchors = d / "anchors.json"
     meta = d / "meta.json"
-    assets = Path(VAULT) / "attachments" / "papers" / d.name
+    assets = Path(VAULT) / "attachments" / "papers" / d.relative_to(raw)
     n_assets = len(list(assets.iterdir())) if assets.is_dir() else 0
-    print(f"  {d.name}: md={md.is_file()}, anchors={anchors.is_file()}, "
+    print(f"  {d.relative_to(raw)} ({citekey}): md={bool(md_candidates)}, anchors={anchors.is_file()}, "
           f"meta={meta.is_file()}, assets={n_assets}")
 
 # Cleanup

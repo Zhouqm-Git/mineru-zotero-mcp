@@ -17,12 +17,13 @@ def _now_ms() -> float:
     return datetime.now(tz=timezone.utc).timestamp() * 1000.0
 
 
-def _write_meta(vault: Path, citekey: str, pages: int, cached_at_ms: float) -> None:
+def _write_meta(vault: Path, doc_id: str, pages: int, cached_at_ms: float) -> None:
     """Write a fake meta.json for one paper."""
-    d = vault / ".raw" / citekey
+    d = vault / ".raw" / doc_id
     d.mkdir(parents=True, exist_ok=True)
     (d / "meta.json").write_text(json.dumps({
-        "citekey": citekey,
+        "doc_id": doc_id,
+        "citekey": doc_id.rsplit("/", 1)[-1],
         "page_count": pages,
         "cached_at": cached_at_ms,
     }))
@@ -39,8 +40,8 @@ def test_empty_vault():
 def test_today_pages_counted():
     vault = Path(tempfile.mkdtemp())
     now = _now_ms()
-    _write_meta(vault, "a2024", 100, now)
-    _write_meta(vault, "b2024", 50, now)
+    _write_meta(vault, "lib-1/A2024", 100, now)
+    _write_meta(vault, "lib-2/B2024", 50, now)
     report = scan_quota(vault)
     assert report.today_pages == 150
     assert report.paper_count == 2
@@ -52,8 +53,8 @@ def test_old_papers_not_in_today():
     vault = Path(tempfile.mkdtemp())
     now = _now_ms()
     two_days_ago = now - 2 * 24 * 3600 * 1000
-    _write_meta(vault, "old2024", 200, two_days_ago)
-    _write_meta(vault, "new2024", 30, now)
+    _write_meta(vault, "lib-1/OLD2024", 200, two_days_ago)
+    _write_meta(vault, "lib-1/NEW2024", 30, now)
     report = scan_quota(vault)
     assert report.today_pages == 30  # only today's
     assert report.total_pages == 230  # all-time
@@ -65,8 +66,8 @@ def test_week_window():
     now = _now_ms()
     three_days_ago = now - 3 * 24 * 3600 * 1000
     ten_days_ago = now - 10 * 24 * 3600 * 1000
-    _write_meta(vault, "recent", 40, three_days_ago)
-    _write_meta(vault, "ancient", 60, ten_days_ago)
+    _write_meta(vault, "lib-1/RECENT", 40, three_days_ago)
+    _write_meta(vault, "lib-1/ANCIENT", 60, ten_days_ago)
     report = scan_quota(vault)
     assert report.week_pages == 40  # only within 7 days
 
@@ -74,7 +75,7 @@ def test_week_window():
 def test_would_exceed():
     vault = Path(tempfile.mkdtemp())
     now = _now_ms()
-    _write_meta(vault, "big", 950, now)
+    _write_meta(vault, "lib-1/BIG", 950, now)
     report = scan_quota(vault)
     assert not report.would_exceed(40)   # 950+40=990 < 1000
     assert report.would_exceed(60)       # 950+60=1010 > 1000
@@ -89,7 +90,7 @@ def test_estimate_batch_pages_default():
 def test_format_advice_no_batch():
     vault = Path(tempfile.mkdtemp())
     now = _now_ms()
-    _write_meta(vault, "x", 100, now)
+    _write_meta(vault, "lib-1/X", 100, now)
     report = scan_quota(vault)
     out = format_quota_advice(report)
     assert "100" in out  # today's pages
@@ -107,7 +108,7 @@ def test_format_advice_within_batch():
 def test_format_advice_exceeds_batch_has_warning():
     vault = Path(tempfile.mkdtemp())
     now = _now_ms()
-    _write_meta(vault, "big", 950, now)
+    _write_meta(vault, "lib-1/BIG", 950, now)
     report = scan_quota(vault)
     out = format_quota_advice(report, proposed_batch_pages=200)
     assert "WOULD EXCEED" in out
@@ -116,9 +117,9 @@ def test_format_advice_exceeds_batch_has_warning():
 
 def test_malformed_meta_skipped():
     vault = Path(tempfile.mkdtemp())
-    d = vault / ".raw" / "broken"
+    d = vault / ".raw" / "lib-1" / "BROKEN"
     d.mkdir(parents=True)
     (d / "meta.json").write_text("not json")
-    _write_meta(vault, "good", 10, _now_ms())
+    _write_meta(vault, "lib-1/GOOD", 10, _now_ms())
     report = scan_quota(vault)
     assert report.paper_count == 1  # only the good one

@@ -1,14 +1,14 @@
 """Vault path conventions, atomic writes, and content-hash cache helpers.
 
 Layout (vault-relative):
-    .raw/<citekey>/<citekey>.md
-    .raw/<citekey>/anchors.json
-    .raw/<citekey>/content.json
-    .raw/<citekey>/meta.json
-    attachments/papers/<citekey>/<image>.png   (figures + fresh captures)
+    .raw/lib-<libraryID>/<item_key>/<citekey>.md
+    .raw/<doc_id>/anchors.json
+    .raw/<doc_id>/content.json
+    .raw/<doc_id>/meta.json
+    attachments/papers/<doc_id>/<image>.png   (figures + fresh captures)
 
 `.raw/` is an internal source/cache layer. User-facing notes live in notes/ and
-embed only visible attachments under attachments/papers/<citekey>/.
+embed only visible attachments under attachments/papers/<doc_id>/.
 
 Atomic writes use temp-file + os.replace (POSIX-atomic), matching vspdf fs-utils.
 The cache key is a content hash of the PDF (md5 of first 1 MB) instead of CiteFlow's
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 # Keep BBT-safe chars (letters, digits, _ - + .) but collapse every other char,
 # then strip path-traversal sequences. A single "." is fine (some citekeys have
-# one), but ".." or leading "." would let a malicious citekey escape .raw/.
+# one), but ".." or leading "." would let a malicious name escape its directory.
 _UNSAFE = re.compile(r"[^A-Za-z0-9_\-+.]")
 _DOT_RUN = re.compile(r"\.{2,}")
 
@@ -39,7 +39,7 @@ def sanitize_citekey(citekey: str) -> str:
     """Make a citekey safe for use as a directory/file name.
 
     - Replace any non-[A-Za-z0-9_\\-+.] with underscore.
-    - Collapse ".."+ to "_" (prevents path traversal via .raw/<citekey>/).
+    - Collapse ".."+ to "_" (prevents path traversal inside vault storage).
     - Strip leading/trailing dots and underscores.
     """
     s = _UNSAFE.sub("_", citekey)
@@ -48,36 +48,54 @@ def sanitize_citekey(citekey: str) -> str:
     return s or "unknown"
 
 
-def raw_dir(vault_root: str | Path, citekey: str) -> Path:
-    return Path(vault_root) / ".raw" / sanitize_citekey(citekey)
+def sanitize_doc_id(doc_id: str) -> str:
+    """Sanitize a vault-relative document id while preserving path hierarchy."""
+    parts = [sanitize_citekey(part) for part in str(doc_id).split("/") if part]
+    return "/".join(parts) or "unknown"
+
+
+def make_doc_id(library_id: int | str | None, item_key: str) -> str:
+    """Build the canonical internal id for a Zotero item parse.
+
+    The citekey is bibliographic and can collide across libraries. The Zotero
+    item key is library-scoped. The internal parse identity is therefore
+    library + item, with citekey kept only as human-readable metadata.
+    """
+    lib = f"lib-{library_id}" if library_id is not None else "lib-unknown"
+    return f"{lib}/{sanitize_citekey(item_key)}"
+
+
+def raw_dir(vault_root: str | Path, doc_id: str) -> Path:
+    return Path(vault_root) / ".raw" / sanitize_doc_id(doc_id)
 
 
 def attachments_dir(vault_root: str | Path) -> Path:
     return Path(vault_root) / "attachments"
 
 
-def paper_attachments_dir(vault_root: str | Path, citekey: str) -> Path:
-    return attachments_dir(vault_root) / "papers" / sanitize_citekey(citekey)
+def paper_attachments_dir(vault_root: str | Path, doc_id: str) -> Path:
+    return attachments_dir(vault_root) / "papers" / sanitize_doc_id(doc_id)
 
 
-def md_path(vault_root: str | Path, citekey: str) -> Path:
-    return raw_dir(vault_root, citekey) / f"{sanitize_citekey(citekey)}.md"
+def md_path(vault_root: str | Path, doc_id: str, citekey: str | None = None) -> Path:
+    name = sanitize_citekey(citekey or Path(sanitize_doc_id(doc_id)).name)
+    return raw_dir(vault_root, doc_id) / f"{name}.md"
 
 
-def anchors_path(vault_root: str | Path, citekey: str) -> Path:
-    return raw_dir(vault_root, citekey) / "anchors.json"
+def anchors_path(vault_root: str | Path, doc_id: str) -> Path:
+    return raw_dir(vault_root, doc_id) / "anchors.json"
 
 
-def content_path(vault_root: str | Path, citekey: str) -> Path:
-    return raw_dir(vault_root, citekey) / "content.json"
+def content_path(vault_root: str | Path, doc_id: str) -> Path:
+    return raw_dir(vault_root, doc_id) / "content.json"
 
 
-def meta_path(vault_root: str | Path, citekey: str) -> Path:
-    return raw_dir(vault_root, citekey) / "meta.json"
+def meta_path(vault_root: str | Path, doc_id: str) -> Path:
+    return raw_dir(vault_root, doc_id) / "meta.json"
 
 
-def assets_dir(vault_root: str | Path, citekey: str) -> Path:
-    return paper_attachments_dir(vault_root, citekey)
+def assets_dir(vault_root: str | Path, doc_id: str) -> Path:
+    return paper_attachments_dir(vault_root, doc_id)
 
 
 def to_vault_relative(vault_root: str | Path, abs_path: str | Path) -> str:
@@ -134,8 +152,8 @@ def pdf_content_hash(pdf_path: str | Path, head_bytes: int = 1024 * 1024) -> str
     return h.hexdigest()
 
 
-def load_meta(vault_root: str | Path, citekey: str) -> dict | None:
-    p = meta_path(vault_root, citekey)
+def load_meta(vault_root: str | Path, doc_id: str) -> dict | None:
+    p = meta_path(vault_root, doc_id)
     if not p.is_file():
         return None
     try:
@@ -145,10 +163,10 @@ def load_meta(vault_root: str | Path, citekey: str) -> dict | None:
 
 
 def is_cached(
-    vault_root: str | Path, citekey: str, pdf_path: str | Path
+    vault_root: str | Path, doc_id: str, pdf_path: str | Path
 ) -> dict | None:
     """Return cached meta dict if the PDF content hash matches; else None."""
-    meta = load_meta(vault_root, citekey)
+    meta = load_meta(vault_root, doc_id)
     if not meta:
         return None
     try:
@@ -167,9 +185,9 @@ def now_ms() -> float:
 # ─── manifest (de)serialization ─────────────────────────────────
 
 
-def load_manifest(vault_root: str | Path, citekey: str) -> dict | None:
+def load_manifest(vault_root: str | Path, doc_id: str) -> dict | None:
     """Load anchors.json as a raw dict (or None if missing/corrupt)."""
-    p = anchors_path(vault_root, citekey)
+    p = anchors_path(vault_root, doc_id)
     if not p.is_file():
         return None
     try:

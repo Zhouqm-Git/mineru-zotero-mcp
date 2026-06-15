@@ -99,7 +99,7 @@ class Anchor:
 
 @dataclass
 class AnchorManifest:
-    docId: str  # citekey in the new architecture
+    docId: str  # canonical parse identity: lib-<libraryID>/<item_key>
     sourcePdf: str  # absolute PDF path
     markdownPath: str  # relative to vault root
     contentListPath: str  # relative to vault root
@@ -118,6 +118,7 @@ class ParseResult:
 
     citekey: str
     item_key: str | None
+    doc_id: str
     pdf_path: str  # absolute
     markdown_path: str  # relative to vault
     anchors_path: str
@@ -128,16 +129,21 @@ class ParseResult:
     table_count: int
     char_count: int
     cached: bool
+    library_id: int | None = None
+    library_name: str | None = None
 
 
 @dataclass
 class ParseMeta:
-    """Persisted to <citekey>/meta.json — drives the content-hash cache."""
+    """Persisted to <doc_id>/meta.json — drives the content-hash cache."""
 
     citekey: str
     item_key: str | None
+    doc_id: str
     source_path: str  # absolute PDF path
     source_hash: str  # md5 of first 1MB (content-hash cache key)
+    library_id: int | None = None
+    library_name: str | None = None
     strategy: str = "mineru"
     model_version: str = "vlm"
     parse_time_ms: int = 0

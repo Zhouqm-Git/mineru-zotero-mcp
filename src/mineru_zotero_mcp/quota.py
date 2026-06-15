@@ -45,7 +45,7 @@ class QuotaReport:
     total_pages: int
     # Number of papers in the vault.
     paper_count: int
-    # List of (citekey, pages, cached_at_iso) parsed today.
+    # List of (doc_id, pages, cached_at_iso) parsed today.
     today_papers: list[tuple[str, int, str]]
     # Estimated remaining high-priority pages today.
     remaining_today: int
@@ -60,7 +60,7 @@ def _utc_date(ts_ms: float) -> str:
 
 
 def scan_quota(vault_root: str | Path) -> QuotaReport:
-    """Scan the vault's .raw/*/meta.json files and summarize usage.
+    """Scan the vault's .raw/**/meta.json files and summarize usage.
 
     A paper counts toward "today" if its meta.json cached_at falls on today's
     UTC date AND it was a fresh parse (not a cache hit we re-reported). We
@@ -86,18 +86,13 @@ def scan_quota(vault_root: str | Path) -> QuotaReport:
             today_papers=[], remaining_today=DAILY_HIGH_PRIORITY_PAGES,
         )
 
-    for citekey_dir in sorted(raw_dir.iterdir()):
-        if not citekey_dir.is_dir():
-            continue
-        meta_file = citekey_dir / "meta.json"
-        if not meta_file.is_file():
-            continue
+    for meta_file in sorted(raw_dir.rglob("meta.json")):
         try:
             meta = json.loads(meta_file.read_text(encoding="utf-8"))
         except Exception:  # noqa: BLE001
             continue
 
-        citekey = meta.get("citekey") or citekey_dir.name
+        doc_id = meta.get("doc_id") or meta_file.parent.relative_to(raw_dir).as_posix()
         pages = int(meta.get("page_count", 0) or 0)
         cached_at = float(meta.get("cached_at", 0) or 0)
         paper_count += 1
@@ -107,7 +102,7 @@ def scan_quota(vault_root: str | Path) -> QuotaReport:
             day = _utc_date(cached_at)
             if day == today_utc:
                 today_pages += pages
-                today_papers.append((citekey, pages, day))
+                today_papers.append((doc_id, pages, day))
             if cached_at >= week_ago_ms:
                 week_pages += pages
 
