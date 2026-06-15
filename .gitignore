@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Test / coverage artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# Runtime vault data (parsed papers, figures, captures) — user-generated, large
+raw/
+attachments/
+.raw/
+_attachments/
+*.meta.json.tmp
+
+# Local MCP / agent configs that may contain tokens
+.mcp.json
+.mcp.local.json
