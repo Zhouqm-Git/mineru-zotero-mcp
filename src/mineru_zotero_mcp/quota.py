@@ -69,7 +69,7 @@ def scan_quota(vault_root: str | Path) -> QuotaReport:
     don't rewrite meta.json, so they don't double-count.
     """
     vault_root = Path(vault_root)
-    raw_dir = vault_root / "raw"
+    raw_dir = vault_root / ".raw"
     today_utc = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d")
     now_ms = datetime.now(tz=timezone.utc).timestamp() * 1000.0
     week_ago_ms = now_ms - 7 * 24 * 3600 * 1000.0

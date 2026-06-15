@@ -6,15 +6,15 @@ It is the companion to [`zotero-mcp`](https://github.com/54yyyu/zotero-mcp): whe
 
 ## What it does
 
-`Zotero item → citation key → MinerU parse → Obsidian vault .raw/<citekey>/`
+`Zotero item → citation key → MinerU parse → Obsidian vault`
 
 Produces, per paper:
 
-- `<citekey>.md` — full MinerU Markdown (tables are GFM pipe tables, not images)
-- `anchors.json` — each text/image/table/equation/list block mapped back to a PDF page + bbox
-- `content.json` — raw MinerU content_list
-- `assets/` — extracted figures
-- `meta.json` — parse metadata + content-hash cache
+- `.raw/<citekey>/<citekey>.md` — full MinerU Markdown (tables are GFM pipe tables, not images)
+- `.raw/<citekey>/anchors.json` — each text/image/table/equation/list block mapped back to a PDF page + bbox
+- `.raw/<citekey>/content.json` — raw MinerU content_list
+- `.raw/<citekey>/meta.json` — parse metadata + content-hash cache
+- `attachments/papers/<citekey>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
 ## Tools (7)
 
@@ -33,7 +33,7 @@ annotation/note/search are deliberately **not** implemented — those belong to 
 
 ```
 MINERU_API_TOKEN=xxx         # mineru.net API token
-VAULT_ROOT=/path/to/vault    # Obsidian vault root (.raw/ lands here)
+VAULT_ROOT=/path/to/vault    # .raw/ + attachments/papers/ land here
 ZOTERO_LOCAL=true            # reuse zotero-mcp local mode (reads ~/Zotero/zotero.sqlite)
 ```
 

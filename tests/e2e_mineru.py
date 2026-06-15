@@ -39,9 +39,12 @@ print(f"token:    {TOKEN[:20]}...")
 print()
 
 # Fresh vault for a clean test.
-raw = Path(VAULT) / "raw" / CITEKEY
+raw = Path(VAULT) / ".raw" / CITEKEY
 if raw.exists():
     shutil.rmtree(raw)
+paper_attachments = Path(VAULT) / "attachments" / "papers" / CITEKEY
+if paper_attachments.exists():
+    shutil.rmtree(paper_attachments)
 Path(VAULT).mkdir(parents=True, exist_ok=True)
 
 from mineru_zotero_mcp.mineru_client import MineruClient
@@ -113,8 +116,8 @@ if anchors_p.is_file():
     # Show any table anchors that got a markdown table attached.
     tables_with_md = [a for a in anchors if a.get("kind") == "table" and a.get("markdownTable")]
     print(f"  tables with GFM markdown: {len(tables_with_md)}")
-    # Show merged figure anchors (image anchors whose imagePath starts with fig_).
-    merged_figs = [a for a in anchors if a.get("kind") == "image" and a.get("imagePath", "").startswith("assets/fig_")]
+    # Show merged figure anchors.
+    merged_figs = [a for a in anchors if a.get("kind") == "image" and "/fig_" in a.get("imagePath", "")]
     print(f"  merged figures (fig_*.png): {len(merged_figs)}")
 
 # Show first ~40 lines of markdown so we can eyeball table-as-markdown + page markers.

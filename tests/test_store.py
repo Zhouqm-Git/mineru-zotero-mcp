@@ -1,8 +1,7 @@
 """Tests for store: paths, atomic writes, content-hash cache, manifest round-trip.
 
-Exercises the .raw/<citekey>/ layout and the cache-key policy without any
-third-party deps (only stdlib tempfile). pytest-style fixtures are avoided so
-this also runs under a plain unittest runner.
+Exercises the .raw/<citekey>/ internal layout, attachments/papers/<citekey>/
+embed layout, and cache-key policy without any third-party deps.
 """
 
 import json
@@ -35,20 +34,20 @@ def test_sanitize_citekey_blocks_traversal():
 def test_raw_dir_layout():
     d = store.raw_dir(_tmp(), "smith2024")
     assert d.name == "smith2024"
-    assert d.parent.name == "raw"  # no leading dot/underscore (Obsidian visibility)
+    assert d.parent.name == ".raw"
 
 
 def test_file_paths():
     t = _tmp()
-    assert store.md_path(t, "k1") == t / "raw" / "k1" / "k1.md"
+    assert store.md_path(t, "k1") == t / ".raw" / "k1" / "k1.md"
     assert store.anchors_path(t, "k1").name == "anchors.json"
     assert store.content_path(t, "k1").name == "content.json"
     assert store.meta_path(t, "k1").name == "meta.json"
-    assert store.assets_dir(t, "k1").name == "assets"
+    assert store.assets_dir(t, "k1") == t / "attachments" / "papers" / "k1"
 
 
 def test_atomic_write_text():
-    p = _tmp() / "raw" / "k1" / "k1.md"
+    p = _tmp() / ".raw" / "k1" / "k1.md"
     store.write_text(p, "hello")
     assert p.read_text() == "hello"
     assert not list(p.parent.glob(".*.tmp"))  # no leftover temps
@@ -98,9 +97,9 @@ def test_manifest_round_trip():
     manifest = AnchorManifest(
         docId="k1",
         sourcePdf="/abs/x.pdf",
-        markdownPath="raw/k1/k1.md",
-        contentListPath="raw/k1/content.json",
-        assetsRoot="raw/k1/assets",
+        markdownPath=".raw/k1/k1.md",
+        contentListPath=".raw/k1/content.json",
+        assetsRoot="attachments/papers/k1",
         pageDimensions=[PageDimension(pageIdx=0, width=1000, height=1000)],
         anchors=[
             Anchor(
@@ -121,4 +120,3 @@ def test_manifest_round_trip():
     assert rebuilt.anchors[0].anchorId == "a_text_p1_0000"
     assert rebuilt.anchors[0].bbox == (0.1, 0.1, 0.5, 0.5)
     assert rebuilt.pageDimensions[0].pageIdx == 0
-

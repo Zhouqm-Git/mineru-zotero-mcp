@@ -87,7 +87,7 @@ def list_visual_candidates_tool(
         lines.append(f"## Figure {i} — page {p}")
         lines.append(f"- caption: {caption}")
         lines.append(f"- location: page {p}, bbox {bbox_str}")
-        lines.append(f"- image: `{path}`  ← use this in a note: `!{path}` or `![[{path.split('/')[-1]}]]`")
+        lines.append(f"- image: `{path}`  ← use this in a note: `![[{path}]]`")
         if ctx:
             lines.append(f"- nearby text: {ctx}")
         lines.append("")
@@ -95,7 +95,7 @@ def list_visual_candidates_tool(
     lines.append(
         "Tip: pick figures whose caption matches your note's point and embed the "
         "path above. No need to call any other tool to get the image — it's already "
-        "rendered and on disk."
+        "rendered under attachments/papers/<citekey>/."
     )
     return "\n".join(lines)
 

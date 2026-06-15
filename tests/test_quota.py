@@ -19,7 +19,7 @@ def _now_ms() -> float:
 
 def _write_meta(vault: Path, citekey: str, pages: int, cached_at_ms: float) -> None:
     """Write a fake meta.json for one paper."""
-    d = vault / "raw" / citekey
+    d = vault / ".raw" / citekey
     d.mkdir(parents=True, exist_ok=True)
     (d / "meta.json").write_text(json.dumps({
         "citekey": citekey,
@@ -116,7 +116,7 @@ def test_format_advice_exceeds_batch_has_warning():
 
 def test_malformed_meta_skipped():
     vault = Path(tempfile.mkdtemp())
-    d = vault / "raw" / "broken"
+    d = vault / ".raw" / "broken"
     d.mkdir(parents=True)
     (d / "meta.json").write_text("not json")
     _write_meta(vault, "good", 10, _now_ms())

@@ -4,8 +4,9 @@ Direct port of vspdf/src/anchor-generator.ts (logic unchanged). Each anchor maps
 a content block (text/image/table/equation/list) to a PDF page + normalized bbox.
 
 The one divergence from the TS original: image/table `imagePath` is written as a
-vault-relative path `assets/<name>` instead of `.docnotes/parsed/<slug>.assets/<name>`,
-because the new layout is <vault>/.raw/<citekey>/assets/.
+vault-relative path under `attachments/papers/<citekey>/`, because parsed
+markdown and anchor metadata live in hidden `.raw/` while user-facing figures
+must remain visible/embeddable in Obsidian.
 """
 
 from __future__ import annotations
@@ -103,6 +104,7 @@ def _build_anchor(
     bbox_raw: tuple[float, float, float, float],
     index: int,
     content_index: int,
+    assets_root: str,
 ) -> Anchor:
     anchor = Anchor(
         anchorId=_make_anchor_id(kind, page, index),
@@ -119,7 +121,7 @@ def _build_anchor(
     elif kind == "image":
         if item.img_path:
             name = item.img_path.split("/", 1)[-1] if item.img_path.startswith("images/") else item.img_path
-            anchor.imagePath = f"assets/{name}"
+            anchor.imagePath = f"{assets_root}/{name}"
         anchor.caption = item.image_caption[0] if item.image_caption else None
     elif kind == "table":
         # NOTE: img_path is intentionally dropped for tables (table-as-markdown policy).
@@ -174,7 +176,7 @@ def generate_anchors(
         idx = counters[key]
         counters[key] = idx + 1
 
-        anchors.append(_build_anchor(item, kind, page, bbox, item.bbox, idx, i))
+        anchors.append(_build_anchor(item, kind, page, bbox, item.bbox, idx, i, assets_root))
 
     # 3. Deduplicate nested text anchors.
     anchors = _deduplicate_text_anchors(anchors, content_list)

@@ -106,12 +106,12 @@ print()
 
 # Vault layout check
 print("=== VAULT LAYOUT ===")
-raw = Path(VAULT) / "raw"
+raw = Path(VAULT) / ".raw"
 for d in sorted(raw.iterdir()) if raw.exists() else []:
     md = d / f"{d.name}.md"
     anchors = d / "anchors.json"
     meta = d / "meta.json"
-    assets = d / "assets"
+    assets = Path(VAULT) / "attachments" / "papers" / d.name
     n_assets = len(list(assets.iterdir())) if assets.is_dir() else 0
     print(f"  {d.name}: md={md.is_file()}, anchors={anchors.is_file()}, "
           f"meta={meta.is_file()}, assets={n_assets}")

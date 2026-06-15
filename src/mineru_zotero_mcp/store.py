@@ -1,15 +1,14 @@
 """Vault path conventions, atomic writes, and content-hash cache helpers.
 
 Layout (vault-relative):
-    raw/<citekey>/<citekey>.md
-    raw/<citekey>/anchors.json
-    raw/<citekey>/content.json
-    raw/<citekey>/meta.json
-    raw/<citekey>/assets/<image>.jpg
-    attachments/<citekey>_<id>.png   (fresh captures)
+    .raw/<citekey>/<citekey>.md
+    .raw/<citekey>/anchors.json
+    .raw/<citekey>/content.json
+    .raw/<citekey>/meta.json
+    attachments/papers/<citekey>/<image>.png   (figures + fresh captures)
 
-NOTE: directory names must NOT start with "." or "_" — Obsidian ignores those
-by default, which would make parsed papers invisible in the vault.
+`.raw/` is an internal source/cache layer. User-facing notes live in notes/ and
+embed only visible attachments under attachments/papers/<citekey>/.
 
 Atomic writes use temp-file + os.replace (POSIX-atomic), matching vspdf fs-utils.
 The cache key is a content hash of the PDF (md5 of first 1 MB) instead of CiteFlow's
@@ -50,13 +49,15 @@ def sanitize_citekey(citekey: str) -> str:
 
 
 def raw_dir(vault_root: str | Path, citekey: str) -> Path:
-    # NOTE: directory name must NOT start with "." or "_" — Obsidian ignores
-    # those by default, which would make parsed papers invisible in the vault.
-    return Path(vault_root) / "raw" / sanitize_citekey(citekey)
+    return Path(vault_root) / ".raw" / sanitize_citekey(citekey)
 
 
 def attachments_dir(vault_root: str | Path) -> Path:
     return Path(vault_root) / "attachments"
+
+
+def paper_attachments_dir(vault_root: str | Path, citekey: str) -> Path:
+    return attachments_dir(vault_root) / "papers" / sanitize_citekey(citekey)
 
 
 def md_path(vault_root: str | Path, citekey: str) -> Path:
@@ -76,7 +77,7 @@ def meta_path(vault_root: str | Path, citekey: str) -> Path:
 
 
 def assets_dir(vault_root: str | Path, citekey: str) -> Path:
-    return raw_dir(vault_root, citekey) / "assets"
+    return paper_attachments_dir(vault_root, citekey)
 
 
 def to_vault_relative(vault_root: str | Path, abs_path: str | Path) -> str:

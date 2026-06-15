@@ -1,15 +1,16 @@
 """Auto-merge fragmented figures during parsing.
 
-After MinerU extraction, the markdown + assets/ contain image fragments: one
-real figure is often split into N adjacent image anchors with N separate jpgs.
+After MinerU extraction, the markdown + paper attachment directory contain image
+fragments: one real figure is often split into N adjacent image anchors with N
+separate jpgs.
 This module runs right after anchor generation to:
 
   1. Detect fragment groups (reuses fragment_detector).
   2. For each group with > 1 fragment, render ONE complete figure from the
      original PDF via PyMuPDF (high-DPI, full union bbox).
-  3. Rewrite the markdown: replace the N fragmented ![](assets/fragX.jpg)
-     references with a single ![](assets/fig_<id>.png).
-  4. Delete the now-orphaned fragment jpgs from assets/.
+  3. Rewrite the markdown: replace the N fragmented image references with a
+     single ![](attachments/papers/<citekey>/fig_<id>.png).
+  4. Delete the now-orphaned fragment jpgs from the attachment directory.
   5. Update the anchors so the group becomes a single anchor pointing at the
      merged figure (the surviving anchor keeps its id; siblings are removed).
 
@@ -47,6 +48,7 @@ def merge_fragmented_figures(
     markdown: str,
     pdf_path: str | Path,
     assets_directory: Path,
+    assets_relative: str,
 ) -> tuple[str, int]:
     """Merge fragmented figure anchors in-place and rewrite the markdown.
 
@@ -54,7 +56,9 @@ def merge_fragmented_figures(
         manifest: the AnchorManifest (mutated: fragment anchors collapsed).
         markdown: the current markdown body (table-converted, image-paths rewritten).
         pdf_path: original PDF, used to re-render complete figures.
-        assets_directory: absolute path to assets/ — orphaned fragments deleted here.
+        assets_directory: absolute path to the paper attachment dir — orphaned
+            fragments deleted here.
+        assets_relative: vault-relative path to assets_directory.
 
     Returns:
         (rewritten_markdown, merged_count) — the new markdown and how many
@@ -128,7 +132,7 @@ def merge_fragmented_figures(
             # Collapse the anchor group: survivor absorbs the union bbox +
             # merged image; siblings are marked for removal.
             survivor.bbox = group.mergedBbox
-            survivor.imagePath = f"assets/{fig_name}"
+            survivor.imagePath = f"{assets_relative}/{fig_name}"
             # Blend captions from all fragments (drop empties / dups).
             captions = []
             for aid in group.anchorIds:
@@ -153,7 +157,7 @@ def merge_fragmented_figures(
     manifest.anchors = [a for a in manifest.anchors if a.anchorId not in absorbed_ids]
 
     # Rewrite markdown image references.
-    rewritten = _rewrite_fragment_refs(markdown, path_rewrites, absorbed_ids)
+    rewritten = _rewrite_fragment_refs(markdown, path_rewrites, assets_relative)
     return rewritten, merged_count
 
 
@@ -164,7 +168,7 @@ def _find_anchor(manifest: AnchorManifest, anchor_id: str) -> Anchor | None:
 def _rewrite_fragment_refs(
     markdown: str,
     path_rewrites: dict[str, str],
-    absorbed_ids: set[str],
+    assets_relative: str,
 ) -> str:
     """Collapse N fragment image refs into one merged-figure ref.
 
@@ -217,7 +221,7 @@ def _rewrite_fragment_refs(
         if target not in seen_merged:
             seen_merged.add(target)
             combined_alt = " / ".join(a for a in alt_texts if a) or "figure"
-            out.append(f"![{combined_alt}](assets/{target})")
+            out.append(f"![{combined_alt}]({assets_relative}/{target})")
         # else: skip — the figure was already emitted elsewhere.
         i = j + 1
 

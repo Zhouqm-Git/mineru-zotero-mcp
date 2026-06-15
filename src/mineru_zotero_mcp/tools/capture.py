@@ -2,8 +2,8 @@
 
 Renders an arbitrary region of the paper's PDF as a PNG. After parse-time
 figure merging, this is NOT needed for figures — those are already whole and
-high-quality in assets/. This tool serves NON-figure content that has no image
-on disk but that you want to show visually in a note:
+high-quality in attachments/papers/<citekey>/. This tool serves NON-figure
+content that has no image on disk but that you want to show visually in a note:
 
   - a formula block          (equation anchors have text but no image)
   - a table's visual layout  (tables are stored as GFM text, not images)
@@ -31,12 +31,7 @@ from typing import Any
 from .._app import mcp
 from .._ctx import get_vault_root
 from ..pdf_renderer import render_region
-from ..store import (
-    attachments_dir,
-    load_manifest,
-    sanitize_citekey,
-    to_vault_relative,
-)
+from ..store import load_manifest, paper_attachments_dir, sanitize_citekey, to_vault_relative
 from ..types import Bbox
 from ..zotero_bridge import get_pdf_path_for_item
 
@@ -47,7 +42,7 @@ logger = logging.getLogger(__name__)
     name="mineru_capture_region",
     description=(
         "Render an arbitrary region of the paper's PDF as a PNG and save it under "
-        "the vault's _attachments/. Use this for NON-figure content that has no "
+        "the vault's attachments/papers/<citekey>/. Use this for NON-figure content that has no "
         "image on disk: a formula block, a table's visual layout, a text passage "
         "as evidence, or a custom bbox. For figures, use the image path returned "
         "by mineru_list_visual_candidates directly — figures are already rendered "
@@ -116,7 +111,7 @@ def capture_region_tool(
         f"- page: {target_page}\n"
         f"- bbox (normalized): {[round(c, 3) for c in target_bbox]}\n"
         f"- image: {cap.image_width}×{cap.image_height} px @ {dpi} DPI\n"
-        f"- embed in a note: `!{out_relative}` or `![[{Path(out_relative).name}]]`\n\n"
+        f"- embed in a note: `![[{out_relative}]]`\n\n"
         f"To create a Zotero annotation, call "
         f"`zotero_create_area_annotation(attachment_key=..., page={target_page}, "
         f"x={target_bbox[0]:.4f}, y={target_bbox[1]:.4f}, "
@@ -148,7 +143,7 @@ def _resolve_pdf(manifest: dict[str, Any]) -> str | None:
 
 
 def _build_capture_path(vault: Path, citekey: str) -> tuple[Path, str]:
-    out_dir = attachments_dir(vault)
+    out_dir = paper_attachments_dir(vault, citekey)
     out_dir.mkdir(parents=True, exist_ok=True)
     cap_id = f"{sanitize_citekey(citekey)}_{int(time.time())}_{uuid.uuid4().hex[:6]}"
     out_path = out_dir / f"cap_{cap_id}.png"

@@ -76,9 +76,9 @@ def test_bbox_normalized_against_1000():
 
 def test_image_path_rewritten_to_assets():
     items = [_image(0, img="images/fig1.jpg", caption=["Fig 1"])]
-    m = generate_anchors("k1", "/x.pdf", "k1.md", "content.json", "assets", items)
+    m = generate_anchors("k1", "/x.pdf", "k1.md", "content.json", "attachments/papers/k1", items)
     a = m.anchors[0]
-    assert a.imagePath == "assets/fig1.jpg", a.imagePath
+    assert a.imagePath == "attachments/papers/k1/fig1.jpg", a.imagePath
     assert a.caption == "Fig 1"
 
 

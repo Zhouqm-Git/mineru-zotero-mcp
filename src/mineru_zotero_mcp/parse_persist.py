@@ -2,14 +2,15 @@
 
 Orchestrates: zotero_bridge (PDF path + citekey) → mineru_client (extract) →
 table_normalizer (tables → MD) → anchor_generator (bbox map) → store (atomic
-write to .raw/<citekey>/).
+write to .raw/<citekey>/ and user-visible figures to attachments/papers/<citekey>/).
 
 Replaces vspdf/src/parse-and-persist.ts. Key differences from the TS original:
   - Input is item_key/citekey (not a workspace-relative docId).
   - Output dir is <vault>/.raw/<citekey>/ (not .docnotes/parsed/).
   - Tables are normalized to GFM Markdown (not left as dual HTML+image).
   - Cache key is PDF content hash (not mtime).
-  - Image paths rewritten to assets/<name> (vault-relative, Obsidian-reachable).
+  - Image paths rewritten to attachments/papers/<citekey>/<name>
+    (vault-relative, Obsidian-reachable).
 """
 
 from __future__ import annotations
@@ -97,7 +98,7 @@ def _inject_page_markers(markdown: str, content_list: list[ContentItem]) -> str:
 def _persist_images(
     extracted: ExtractedZip, assets_directory: Path, assets_relative: str
 ) -> tuple[int, dict[str, str]]:
-    """Write every image from the zip into assets/. Returns (count, image_map)."""
+    """Write every image from the zip into the paper attachment dir."""
     ensure_dir(assets_directory)
     image_map: dict[str, str] = {}
     for basename, data in extracted.images.items():
@@ -175,7 +176,10 @@ def parse_pdf(
     force: bool = False,
     poll_timeout_s: float = 300.0,
 ) -> ParseResult:
-    """Parse one Zotero PDF via MinerU and persist to <vault>/.raw/<citekey>/.
+    """Parse one Zotero PDF via MinerU and persist artifacts into the vault.
+
+    Hidden parse artifacts go to <vault>/.raw/<citekey>/. Figures intended for
+    note embeds go to <vault>/attachments/papers/<citekey>/.
 
     Provide either item_key or citekey; the other is resolved via zotero_bridge.
     """
@@ -270,6 +274,7 @@ def parse_pdf(
         markdown=final_markdown,
         pdf_path=pdf_path,
         assets_directory=assets_directory,
+        assets_relative=assets_relative,
     )
     if merged_count:
         logger.info("Auto-merged %d fragmented figure(s) for %s", merged_count, citekey)

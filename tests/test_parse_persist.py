@@ -16,9 +16,9 @@ from mineru_zotero_mcp.types import ContentItem
 
 def test_rewrite_image_paths():
     md = "See ![fig](images/abc.jpg) and ![other](images/def.png)."
-    out = _rewrite_image_paths(md, "raw/k1/assets")
-    assert "![fig](raw/k1/assets/abc.jpg)" in out
-    assert "![other](raw/k1/assets/def.png)" in out
+    out = _rewrite_image_paths(md, "attachments/papers/k1")
+    assert "![fig](attachments/papers/k1/abc.jpg)" in out
+    assert "![other](attachments/papers/k1/def.png)" in out
     assert "images/" not in out
 
 
