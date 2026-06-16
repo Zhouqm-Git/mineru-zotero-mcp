@@ -6,9 +6,11 @@ Layout (vault-relative):
     .raw/<doc_id>/content.json
     .raw/<doc_id>/meta.json
     attachments/papers/<doc_id>/<image>.png   (figures + fresh captures)
+    wiki/sources/zotero/lib-<libraryID>/items/<item_key>.md  (paper source page)
 
-`.raw/` is an internal source/cache layer. User-facing notes live in notes/ and
-embed only visible attachments under attachments/papers/<doc_id>/.
+`.raw/` is an internal source/cache layer. User-facing paper knowledge lives in
+the Zotero-aware wiki tree and embeds only visible attachments under
+attachments/papers/<doc_id>/.
 
 Atomic writes use temp-file + os.replace (POSIX-atomic), matching vspdf fs-utils.
 The cache key is a content hash of the PDF (md5 of first 1 MB) instead of CiteFlow's

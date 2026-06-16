@@ -62,20 +62,27 @@ def test_check_parsed_artifacts_reports_complete_doc():
     assert checks == [{"status": "OK", "name": "parsed artifacts", "detail": "1 parsed"}]
 
 
-def test_check_notes_counts_canonical_indexes_and_sync_markers():
+def test_check_wiki_counts_zotero_indexes_and_sync_markers():
     vault = _tmp()
-    notes = vault / "notes"
-    store.write_text(notes / "lib-1" / "ABCD1234" / "smith2024.md", "---\n$version: 1\n---\n# A")
-    store.write_text(notes / "lib-1" / "ABCD1234" / "index.md", "# Index")
-    store.write_text(notes / "_index.md", "# All")
+    wiki = vault / "wiki"
+    store.write_text(
+        wiki / "sources" / "zotero" / "lib-1" / "items" / "ABCD1234.md",
+        "---\ntype: source\nsource_type: paper\n$version: 1\n---\n# A",
+    )
+    store.write_text(wiki / "sources" / "zotero" / "index.md", "# All")
+    store.write_text(wiki / "sources" / "zotero" / "lib-1" / "index.md", "# Library")
+    store.write_text(
+        wiki / "sources" / "zotero" / "lib-1" / "collections" / "Reading" / "index.md",
+        "# Collection",
+    )
 
     checks = []
-    doctor._check_notes(checks, vault)
+    doctor._check_wiki(checks, vault)
 
     assert checks == [{
         "status": "OK",
-        "name": "notes",
-        "detail": "1 canonical, 2 indexes, 1 Better Notes sync markers",
+        "name": "wiki",
+        "detail": "1 Zotero item pages, 3 Zotero indexes, 1 Better Notes sync markers",
     }]
 
 

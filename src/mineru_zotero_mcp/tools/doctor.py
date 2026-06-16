@@ -22,7 +22,7 @@ _FRONTMATTER_VERSION_RE = re.compile(r"^\$version\s*:", re.MULTILINE)
     description=(
         "Run a read-only health check for the paper-wiki stack: VAULT_ROOT, "
         "MinerU env, parsed .raw artifacts, Zotero local DB bridge, "
-        "BetterBibTeX local port, note layout, and Better Notes sync markers. "
+        "BetterBibTeX local port, Zotero-aware wiki layout, and Better Notes sync markers. "
         "Call this before batch parsing, library indexing, or cross-paper QA."
     ),
 )
@@ -33,7 +33,7 @@ def doctor_tool() -> str:
     if vault is not None:
         _check_vault_layout(checks, vault)
         _check_parsed_artifacts(checks, vault)
-        _check_notes(checks, vault)
+        _check_wiki(checks, vault)
     _check_zotero_bridge(checks)
     _check_better_bibtex(checks)
 
@@ -70,7 +70,7 @@ def _check_vault_layout(checks: list[dict[str, str]], vault: Path) -> None:
     expected = [
         (".raw", vault / ".raw"),
         ("attachments/papers", vault / "attachments" / "papers"),
-        ("notes", vault / "notes"),
+        ("wiki", vault / "wiki"),
     ]
     for label, path in expected:
         if path.is_dir():
@@ -120,15 +120,16 @@ def _check_parsed_artifacts(checks: list[dict[str, str]], vault: Path) -> None:
         _add(checks, "OK", "parsed artifacts", detail)
 
 
-def _check_notes(checks: list[dict[str, str]], vault: Path) -> None:
-    notes_dir = vault / "notes"
-    if not notes_dir.is_dir():
+def _check_wiki(checks: list[dict[str, str]], vault: Path) -> None:
+    wiki_dir = vault / "wiki"
+    if not wiki_dir.is_dir():
         return
-    notes = list(notes_dir.glob("**/*.md"))
-    canonical = [p for p in notes if _looks_like_canonical_note(notes_dir, p)]
-    indexes = [p for p in notes if p.name == "index.md" or p.name == "_index.md"]
+    pages = list(wiki_dir.glob("**/*.md"))
+    paper_pages = [p for p in pages if _is_paper_source_page(p)]
+    item_pages = [p for p in paper_pages if _looks_like_zotero_item_page(wiki_dir, p)]
+    indexes = [p for p in pages if _looks_like_zotero_index(wiki_dir, p)]
     synced = 0
-    for p in notes:
+    for p in paper_pages:
         try:
             if _FRONTMATTER_VERSION_RE.search(p.read_text(encoding="utf-8", errors="ignore")):
                 synced += 1
@@ -136,15 +137,46 @@ def _check_notes(checks: list[dict[str, str]], vault: Path) -> None:
             continue
     _add(
         checks,
-        "OK" if notes else "WARN",
-        "notes",
-        f"{len(canonical)} canonical, {len(indexes)} indexes, {synced} Better Notes sync markers",
+        "OK" if paper_pages else "WARN",
+        "wiki",
+        f"{len(item_pages)} Zotero item pages, {len(indexes)} Zotero indexes, "
+        f"{synced} Better Notes sync markers",
     )
 
 
-def _looks_like_canonical_note(notes_dir: Path, path: Path) -> bool:
-    rel = path.relative_to(notes_dir)
-    return len(rel.parts) >= 3 and rel.parts[0].startswith("lib-") and path.name != "index.md"
+def _is_paper_source_page(path: Path) -> bool:
+    try:
+        text = path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return bool(re.search(r"^source_type\s*:\s*paper\s*$", text, flags=re.MULTILINE))
+
+
+def _looks_like_zotero_item_page(wiki_dir: Path, path: Path) -> bool:
+    rel = path.relative_to(wiki_dir)
+    return (
+        len(rel.parts) >= 5
+        and rel.parts[0] == "sources"
+        and rel.parts[1] == "zotero"
+        and rel.parts[2].startswith("lib-")
+        and rel.parts[3] == "items"
+        and path.name != "index.md"
+    )
+
+
+def _looks_like_zotero_index(wiki_dir: Path, path: Path) -> bool:
+    rel = path.relative_to(wiki_dir)
+    if path.name != "index.md":
+        return False
+    return (
+        rel.parts == ("sources", "zotero", "index.md")
+        or (
+            len(rel.parts) >= 4
+            and rel.parts[0] == "sources"
+            and rel.parts[1] == "zotero"
+            and rel.parts[2].startswith("lib-")
+        )
+    )
 
 
 def _check_zotero_bridge(checks: list[dict[str, str]]) -> None:

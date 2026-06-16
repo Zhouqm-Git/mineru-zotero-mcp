@@ -20,6 +20,18 @@ Produces, per paper:
 - `.raw/<doc_id>/meta.json` — parse metadata + content-hash cache
 - `attachments/papers/<doc_id>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
+The bundled `skills/paper-wiki` adapter keeps Zotero as the paper knowledge
+backbone inside a claude-obsidian vault:
+
+- `wiki/sources/zotero/index.md` — all indexed papers
+- `wiki/sources/zotero/lib-<libraryID>/index.md` — one Zotero library
+- `wiki/sources/zotero/lib-<libraryID>/items/<item_key>.md` — one canonical paper source page
+- `wiki/sources/zotero/lib-<libraryID>/collections/.../index.md` — collection folder link views
+
+Collection pages link to canonical item pages instead of duplicating them. If
+the same paper exists in different Zotero libraries, each library keeps its own
+`doc_id` and source page.
+
 ## Tools (11)
 
 | Tool | Purpose |
