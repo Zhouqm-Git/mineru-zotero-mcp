@@ -20,12 +20,14 @@ Produces, per paper:
 - `.raw/<doc_id>/meta.json` — parse metadata + content-hash cache
 - `attachments/papers/<doc_id>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
-## Tools (8)
+## Tools (10)
 
 | Tool | Purpose |
 |---|---|
 | `mineru_parse_pdf` | Parse a single Zotero PDF via MinerU; returns `doc_id` |
 | `mineru_parse_batch` | Batch-parse (≤50) with polling/callback |
+| `mineru_list_documents` | List parsed papers in `.raw/<doc_id>/` for reuse and indexing |
+| `mineru_search_evidence` | Search anchors across parsed papers for cross-paper synthesis |
 | `mineru_list_anchors` / `mineru_resolve_anchor` | Query the block→bbox mapping by `doc_id` |
 | `mineru_read_markdown` | Read parsed md by `doc_id`, optionally sliced by page |
 | `mineru_capture_region` | Fresh PDF region capture (PyMuPDF) saved under `attachments/papers/<doc_id>/` |

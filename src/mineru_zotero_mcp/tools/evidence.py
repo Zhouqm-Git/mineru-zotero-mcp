@@ -21,7 +21,7 @@ from ..zotero_bridge import get_pdf_attachment_key_for_item
 logger = logging.getLogger(__name__)
 
 _DEFAULT_AGENT_COLOR = "#a28ae5"
-_DEFAULT_TAGS = ["paper-reader", "evidence"]
+_DEFAULT_TAGS = ["paper-wiki", "evidence"]
 _ANNOTATION_KEY_RE = re.compile(r"\*\*Annotation Key:\*\*\s*([A-Za-z0-9]+)")
 _AUTO_AREA_KINDS = {"image", "table", "equation"}
 
@@ -33,7 +33,7 @@ _AUTO_AREA_KINDS = {"image", "table", "equation"}
         "Input doc_id + anchor_id; this tool resolves the Zotero PDF attachment, "
         "page, text, and bbox automatically. mode='auto' uses text highlights for "
         "text/list anchors and area annotations for image/table/equation anchors. "
-        "Defaults to purple #a28ae5 and tags ['paper-reader', 'evidence'] so "
+        "Defaults to purple #a28ae5 and tags ['paper-wiki', 'evidence'] so "
         "agent-created evidence is visually distinct from user highlights."
     ),
 )
@@ -231,7 +231,7 @@ def _default_comment(anchor: dict[str, Any], doc_id: str) -> str:
     preview = anchor.get("caption") or anchor.get("textPreview") or ""
     preview = _trim_annotation_text(preview, 120)
     suffix = f": {preview}" if preview else ""
-    return f"paper-reader evidence ({doc_id}, {anchor.get('anchorId')}, {kind}){suffix}"
+    return f"paper-wiki evidence ({doc_id}, {anchor.get('anchorId')}, {kind}){suffix}"
 
 
 class _ZoteroToolContext:

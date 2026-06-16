@@ -47,13 +47,13 @@ def test_trim_annotation_text_normalizes_and_limits_at_word_boundary():
 
 
 def test_merge_tags_adds_defaults_and_dedupes():
-    assert evidence._merge_tags(["paper-reader", "method"]) == [
-        "paper-reader",
+    assert evidence._merge_tags(["paper-wiki", "method"]) == [
+        "paper-wiki",
         "evidence",
         "method",
     ]
     assert evidence._merge_tags("risk, method") == [
-        "paper-reader",
+        "paper-wiki",
         "evidence",
         "risk",
         "method",
@@ -104,7 +104,7 @@ def test_create_evidence_annotation_tool_text_anchor_without_real_zotero():
     assert calls["page"] == 1
     assert calls["text"] == "This is the full text from content.json used for highlighting."
     assert calls["color"] == "#a28ae5"
-    assert calls["tags"] == ["paper-reader", "evidence"]
+    assert calls["tags"] == ["paper-wiki", "evidence"]
 
 
 def test_create_evidence_annotation_tool_area_anchor_without_real_zotero():
@@ -144,7 +144,7 @@ def test_create_evidence_annotation_tool_area_anchor_without_real_zotero():
     assert calls["y"] == 0.3
     assert calls["width"] == 0.39999999999999997
     assert calls["height"] == 0.3
-    assert calls["tags"] == ["paper-reader", "evidence", "result"]
+    assert calls["tags"] == ["paper-wiki", "evidence", "result"]
 
 
 def _write_doc(vault: Path, doc_id: str) -> None:
