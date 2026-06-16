@@ -59,7 +59,8 @@ def list_documents_tool(
         "Search text, list, table, figure-caption, and equation anchors across "
         "parsed papers. Returns doc_id + anchor_id + page snippets that can be "
         "resolved with mineru_resolve_anchor or highlighted with "
-        "mineru_create_evidence_annotation."
+        "mineru_create_evidence_annotation. Use match='all' for high-precision "
+        "queries where every keyword must appear in the same anchor."
     ),
 )
 def search_evidence_tool(
@@ -67,12 +68,16 @@ def search_evidence_tool(
     doc_ids: list[str] | str | None = None,
     library_id: int | str | None = None,
     kind: str | None = None,
+    match: str = "any",
     limit: int = 20,
     snippet_chars: int = 220,
 ) -> str:
     terms = _query_terms(query)
     if not terms:
         return "Search query is empty."
+    match = (match or "any").strip().lower()
+    if match not in {"any", "all"}:
+        return "Error: match must be 'any' or 'all'."
 
     vault = get_vault_root()
     docs = _iter_parsed_documents(vault)
@@ -91,6 +96,8 @@ def search_evidence_tool(
             if kind is not None and anchor.get("kind") != kind:
                 continue
             haystack = _anchor_search_text(anchor, content_items)
+            if match == "all" and not _matches_all_terms(terms, haystack):
+                continue
             score = _score_text(query, terms, haystack)
             if score <= 0:
                 continue
@@ -107,6 +114,9 @@ def search_evidence_tool(
         return f"No evidence anchors matched `{query}`."
 
     lines = [f"# Evidence search: `{query}`", ""]
+    if match == "all":
+        lines.append("_Match mode: all query terms must appear in the anchor text._")
+        lines.append("")
     for r in results:
         doc = r["doc"]
         anchor = r["anchor"]
@@ -233,7 +243,14 @@ def _score_text(query: str, terms: list[str], text: str) -> int:
         score += 10
     for term in terms:
         score += lower.count(term)
+    matched_terms = sum(1 for term in set(terms) if term in lower)
+    score += matched_terms * 2
     return score
+
+
+def _matches_all_terms(terms: list[str], text: str) -> bool:
+    lower = text.lower()
+    return all(term in lower for term in set(terms))
 
 
 def _snippet(text: str, terms: list[str], max_chars: int) -> str:

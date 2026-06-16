@@ -106,6 +106,25 @@ def test_search_evidence_tool_returns_cross_doc_anchor_matches():
     assert "mineru_resolve_anchor" in result
 
 
+def test_search_evidence_tool_all_match_filters_partial_hits():
+    vault = _tmp()
+    _write_doc(vault, "lib-1/ABCD1234", "smith2024", "dense reranker")
+    _write_doc(vault, "lib-1/EFGH5678", "jones2025", "dense model only")
+    old = os.environ.get("VAULT_ROOT")
+    os.environ["VAULT_ROOT"] = str(vault)
+    try:
+        result = catalog.search_evidence_tool("dense reranker", kind="text", match="all", limit=5)
+    finally:
+        if old is None:
+            os.environ.pop("VAULT_ROOT", None)
+        else:
+            os.environ["VAULT_ROOT"] = old
+
+    assert "`lib-1/ABCD1234`" in result
+    assert "`lib-1/EFGH5678`" not in result
+    assert "Match mode: all" in result
+
+
 def test_list_documents_tool_shows_metadata():
     vault = _tmp()
     _write_doc(vault, "lib-1/ABCD1234", "smith2024", "hello")
