@@ -15,9 +15,9 @@ output is always crisp regardless of what MinerU produced. You can also use it
 to up-res a figure beyond the default parse-time DPI by passing dpi=300/400.
 
 Boundary: this tool does NOT create a Zotero annotation. It returns the image
-path + page + bbox so the caller can invoke zotero_create_area_annotation
-(zotero-mcp) with those coordinates — keeping the annotation source-of-truth
-in Zotero.
+path + page + bbox for note embeds. For parsed anchors, prefer
+mineru_create_evidence_annotation(doc_id, anchor_id), which resolves the Zotero
+attachment and creates the annotation directly.
 """
 
 from __future__ import annotations
@@ -48,9 +48,8 @@ logger = logging.getLogger(__name__)
         "by mineru_list_visual_candidates directly — figures are already rendered "
         "during parsing.\n\n"
         "Returns the image path (vault-relative), page, normalized bbox, and "
-        "dimensions. This tool does NOT create a Zotero annotation — to create "
-        "one, call `zotero_create_area_annotation` (zotero-mcp) with the "
-        "returned page+bbox."
+        "dimensions. This tool does NOT create a Zotero annotation. For parsed "
+        "anchors, use mineru_create_evidence_annotation(doc_id, anchor_id)."
     ),
 )
 def capture_region_tool(
@@ -112,11 +111,8 @@ def capture_region_tool(
         f"- bbox (normalized): {[round(c, 3) for c in target_bbox]}\n"
         f"- image: {cap.image_width}×{cap.image_height} px @ {dpi} DPI\n"
         f"- embed in a note: `![[{out_relative}]]`\n\n"
-        f"To create a Zotero annotation, call "
-        f"`zotero_create_area_annotation(attachment_key=..., page={target_page}, "
-        f"x={target_bbox[0]:.4f}, y={target_bbox[1]:.4f}, "
-        f"width={target_bbox[2]-target_bbox[0]:.4f}, "
-        f"height={target_bbox[3]-target_bbox[1]:.4f}, comment=...)`."
+        f"For parsed anchors, create a Zotero annotation with "
+        f"`mineru_create_evidence_annotation(doc_id=\"{doc_id}\", anchor_id=...)`."
     )
 
 

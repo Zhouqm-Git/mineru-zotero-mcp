@@ -59,16 +59,65 @@ def get_pdf_path_for_item(item_key: str, library_id: int | str | None = None) ->
     Returns the first existing PDF attachment's path, or None if no local PDF
     is available (cloud-only attachment, or Zotero DB not readable).
     """
+    attachments = _get_pdf_attachments_for_item(item_key, library_id)
+    for att in attachments:
+        resolved = att.get("resolved_path")
+        if att.get("exists") and resolved:
+            return Path(resolved)
+    return None
+
+
+def get_pdf_attachment_key_for_item(
+    item_key: str,
+    library_id: int | str | None = None,
+    pdf_path: str | Path | None = None,
+) -> str | None:
+    """Return the Zotero attachment key for an item's PDF.
+
+    If `pdf_path` is provided, prefer the attachment whose resolved local path
+    matches it. Otherwise return the first existing PDF attachment.
+    """
+    attachments = _get_pdf_attachments_for_item(item_key, library_id)
+    if not attachments:
+        return None
+
+    if pdf_path is not None:
+        try:
+            target = Path(pdf_path).expanduser().resolve()
+        except OSError:
+            target = Path(pdf_path).expanduser()
+        for att in attachments:
+            resolved = att.get("resolved_path")
+            if not resolved:
+                continue
+            try:
+                candidate = Path(resolved).expanduser().resolve()
+            except OSError:
+                candidate = Path(resolved).expanduser()
+            if candidate == target:
+                return att.get("key")
+
+    for att in attachments:
+        if att.get("exists") and att.get("key"):
+            return att["key"]
+    return attachments[0].get("key")
+
+
+def _get_pdf_attachments_for_item(
+    item_key: str, library_id: int | str | None = None
+) -> list[dict[str, Any]]:
     Reader = _local_reader_factory()
     db_path = _zotero_db_path()
     try:
         with Reader(db_path=db_path) as reader:
             parent = _find_item_row(reader, item_key, library_id)
             if parent is None:
-                return None
+                return []
             attachments = []
             for att_key, zotero_path, ctype in reader._iter_parent_attachments(parent["itemID"]):
                 resolved = reader._resolve_attachment_path(att_key, zotero_path or "")
+                if ctype != "application/pdf" and (not resolved or Path(resolved).suffix.lower() != ".pdf"):
+                    continue
                 attachments.append({
                     "key": att_key,
                     "content_type": ctype,
@@ -76,23 +125,12 @@ def get_pdf_path_for_item(item_key: str, library_id: int | str | None = None) ->
                     "resolved_path": resolved,
                     "exists": bool(resolved and resolved.exists()),
                 })
+            return attachments
     except AmbiguousItemKeyError:
         raise
-    except Exception as e:  # noqa: BLE001 — bridge must degrade gracefully
-        logger.warning("get_attachment_paths failed for %s: %s", item_key, e)
-        return None
-
-    for att in attachments:
-        if att.get("content_type") == "application/pdf" and att.get("exists"):
-            resolved = att.get("resolved_path")
-            if resolved is not None:
-                return Path(resolved)
-    # Fall back to any existing PDF regardless of content_type label.
-    for att in attachments:
-        resolved = att.get("resolved_path")
-        if att.get("exists") and resolved and Path(resolved).suffix.lower() == ".pdf":
-            return Path(resolved)
-    return None
+    except Exception as e:  # noqa: BLE001
+        logger.warning("PDF attachment lookup failed for %s: %s", item_key, e)
+        return []
 
 
 def _find_item_row(reader: Any, item_key: str, library_id: int | str | None = None) -> Any | None:

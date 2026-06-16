@@ -20,7 +20,7 @@ Produces, per paper:
 - `.raw/<doc_id>/meta.json` — parse metadata + content-hash cache
 - `attachments/papers/<doc_id>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
-## Tools (7)
+## Tools (8)
 
 | Tool | Purpose |
 |---|---|
@@ -30,8 +30,12 @@ Produces, per paper:
 | `mineru_read_markdown` | Read parsed md by `doc_id`, optionally sliced by page |
 | `mineru_capture_region` | Fresh PDF region capture (PyMuPDF) saved under `attachments/papers/<doc_id>/` |
 | `mineru_list_visual_candidates` | List parse-time merged figure candidates by `doc_id` |
+| `mineru_create_evidence_annotation` | Create a Zotero evidence annotation from `doc_id + anchor_id` |
 
-annotation/note/search are deliberately **not** implemented — those belong to zotero-mcp.
+Low-level annotation/note/search writes still belong to zotero-mcp. This server
+adds one high-level evidence wrapper so agents can create Zotero annotations
+from MinerU anchors without manually passing `attachment_key`, page, text, or
+bbox.
 
 ## Configuration
 
