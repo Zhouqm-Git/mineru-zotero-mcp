@@ -20,10 +20,11 @@ Produces, per paper:
 - `.raw/<doc_id>/meta.json` — parse metadata + content-hash cache
 - `attachments/papers/<doc_id>/` — extracted and re-rendered figures/captures for Obsidian embeds
 
-## Tools (10)
+## Tools (11)
 
 | Tool | Purpose |
 |---|---|
+| `mineru_doctor` | Read-only health check for the Zotero → MinerU → Obsidian stack |
 | `mineru_parse_pdf` | Parse a single Zotero PDF via MinerU; returns `doc_id` |
 | `mineru_parse_batch` | Batch-parse (≤50) with polling/callback |
 | `mineru_list_documents` | List parsed papers in `.raw/<doc_id>/` for reuse and indexing |
