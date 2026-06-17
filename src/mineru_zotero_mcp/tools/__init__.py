@@ -6,4 +6,16 @@ zotero-mcp's tools/__init__.py).
 """
 
 # Order doesn't matter for registration; each module decorates at import time.
-from . import anchors, capture, candidates, catalog, doctor, evidence, markdown, parse, quota  # noqa: F401
+from . import (  # noqa: F401
+    anchors,
+    arxiv,
+    capture,
+    candidates,
+    catalog,
+    doctor,
+    evidence,
+    markdown,
+    parse,
+    quota,
+    recommendations,
+)

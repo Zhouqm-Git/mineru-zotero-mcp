@@ -6,7 +6,7 @@ Layout (vault-relative):
     .raw/<doc_id>/content.json
     .raw/<doc_id>/meta.json
     attachments/papers/<doc_id>/<image>.png   (figures + fresh captures)
-    wiki/sources/zotero/lib-<libraryID>/items/<item_key>.md  (paper source page)
+    wiki/sources/zotero/<collection_path>/<citekey>.md  (paper source page; citekey is filename)
 
 `.raw/` is an internal source/cache layer. User-facing paper knowledge lives in
 the Zotero-aware wiki tree and embeds only visible attachments under

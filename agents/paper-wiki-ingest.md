@@ -20,9 +20,9 @@ Input:
 Process:
 1. Run `mineru_doctor` and stop on FAIL.
 2. Parse each missing paper with `mineru_parse_pdf` or batch with `mineru_parse_batch`.
-3. Create compact paper source pages under `wiki/sources/zotero/lib-<libraryID>/items/<item_key>.md`.
+3. Create compact paper source pages under `wiki/sources/zotero/<collection_path>/<citekey>.md` (resolve collection path via `zotero_get_collections`; route via `wiki-mode.py route paper "<citekey>" --collection-path "<path>"`; use `_unsorted/<citekey>.md` when the item has no collection).
 4. Use `scripts/wiki-lock.sh` before writing wiki files when available.
-5. Preserve collection membership in frontmatter `collection_paths`; collection folders get `index.md` link views, not duplicate paper pages.
+5. Preserve collection membership in frontmatter `collection_paths` (human slash paths, not keys); collection folders get `index.md` link views, not duplicate paper pages.
 6. Do not write full deep analysis unless requested.
 7. Return parsed/cache/failure counts and source pages created.
 

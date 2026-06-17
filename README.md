@@ -23,10 +23,10 @@ Produces, per paper:
 The bundled `skills/paper-wiki` adapter keeps Zotero as the paper knowledge
 backbone inside a claude-obsidian vault:
 
-- `wiki/sources/zotero/index.md` — all indexed papers
-- `wiki/sources/zotero/lib-<libraryID>/index.md` — one Zotero library
-- `wiki/sources/zotero/lib-<libraryID>/items/<item_key>.md` — one canonical paper source page
-- `wiki/sources/zotero/lib-<libraryID>/collections/.../index.md` — collection folder link views
+- `wiki/sources/zotero/index.md` — master catalog of all indexed papers
+- `wiki/sources/zotero/<collection_path>/index.md` — one Zotero collection (link view)
+- `wiki/sources/zotero/<collection_path>/<citekey>.md` — one canonical paper source page (human-readable path; citekey is the filename)
+- `wiki/sources/zotero/_unsorted/<citekey>.md` — fallback when a paper has no collection
 
 Collection pages link to canonical item pages instead of duplicating them. If
 the same paper exists in different Zotero libraries, each library keeps its own

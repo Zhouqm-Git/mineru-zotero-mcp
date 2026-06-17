@@ -16,7 +16,14 @@ from collections import defaultdict
 from .types import Anchor, AnchorKind, AnchorManifest, ContentItem, PageDimension
 
 # Kinds that produce anchors (header / page_number are skipped).
-_ANCHOR_KINDS = {"text", "image", "table", "equation", "list"}
+# NOTE: MinerU may emit type="chart" for data visualization figures (heatmaps,
+# bar charts, line charts). These are images visually and must be treated as
+# such — if excluded, chart-heavy pages lose all their figures silently.
+_ANCHOR_KINDS = {"text", "image", "table", "equation", "list", "chart"}
+
+# MinerU types that should be mapped to the "image" anchor kind (they all
+# represent visual content with an img_path).
+_IMAGE_LIKE_TYPES = {"image", "chart"}
 
 # MinerU emits coordinates on a 1000x1000 virtual canvas regardless of the
 # original PDF aspect ratio. Normalize against this base (matches TS:188).
@@ -171,7 +178,10 @@ def generate_anchors(
         page = item.page_idx + 1  # 1-based
         bbox = _normalize_bbox(item.bbox, MINERU_VIRTUAL_SIZE, MINERU_VIRTUAL_SIZE)
 
-        kind = item.type  # type: ignore[assignment]
+        # Map MinerU types to anchor kinds. "chart" is treated as "image"
+        # (both are visual content with img_path).
+        raw_type = item.type
+        kind = "image" if raw_type in _IMAGE_LIKE_TYPES else raw_type  # type: ignore[assignment]
         key = f"{kind}_p{page}"
         idx = counters[key]
         counters[key] = idx + 1
